@@ -158,6 +158,10 @@ std::string  TrafficSegmentMatcher::match(const std::string& json) {
     // Get the traffic segment(s) associated to this edge
     float begin_time, end_time;
     auto segments = tile->GetTrafficSegments(edge_id.id());
+
+    //mark if the first one is partial
+    bool partial_start = &edge == &edges[0] && segments.size() && segments[0].begin_percent_ < edge.start_pct;
+
     if (segments.size() == 1) {
       // Edge is associated to a single traffic segment
       TrafficSegment seg = segments.front();
@@ -177,7 +181,7 @@ std::string  TrafficSegmentMatcher::match(const std::string& json) {
         // A new segment
         bool starts = (seg.starts_segment_ && edge.start_pct == 0.0f);
         bool ends =   (seg.ends_segment_ && edge.end_pct == 1.0f);
-        traffic_segment.emplace_back(MatchedTrafficSegment{!starts, !ends, seg.segment_id_,
+        traffic_segment.emplace_back(MatchedTrafficSegment{partial_start, !ends, seg.segment_id_,
                               edge.start_secs, edge.end_secs, static_cast<uint32_t>(length), edge.begin_edge_index, edge.end_edge_index});
         prior_segment = seg.segment_id_;
       }
@@ -217,7 +221,7 @@ std::string  TrafficSegmentMatcher::match(const std::string& json) {
           bool ends =   seg.ends_segment_;
           float start_secs = edge.start_secs;  // TODO!l
           float end_secs = edge.end_secs;    // TODO!!
-          traffic_segment.emplace_back(MatchedTrafficSegment{!starts, !ends, seg.segment_id_,
+          traffic_segment.emplace_back(MatchedTrafficSegment{partial_start, !ends, seg.segment_id_,
                                 start_secs, end_secs, static_cast<uint32_t>(seg_length),
                                 edge.begin_edge_index, edge.end_edge_index});
           for (size_t i = edge.begin_edge_index; i <= edge.end_edge_index; ++i) {
