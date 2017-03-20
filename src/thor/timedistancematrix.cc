@@ -28,7 +28,8 @@ namespace thor {
 
 // Constructor with cost threshold.
 TimeDistanceMatrix::TimeDistanceMatrix(float initial_cost_threshold)
-    : settled_count_(0),
+    : mode_(TravelMode::kDrive),
+      settled_count_(0),
       initial_cost_threshold_(initial_cost_threshold),
       cost_threshold_(initial_cost_threshold) {
 }
@@ -45,7 +46,7 @@ void TimeDistanceMatrix::Clear() {
   adjacencylist_.reset();
 
   // Clear the edge status flags
-  edgestatus_.reset();
+  edgestatus_.clear();
 }
 
 // Calculate time and distance from one origin location to many destination
@@ -73,7 +74,7 @@ std::vector<TimeDistance> TimeDistanceMatrix::OneToMany(
   };
   adjacencylist_.reset(new DoubleBucketQueue(0.0f, initial_cost_threshold_,
                                              bucketsize, edgecost));
-  edgestatus_.reset(new EdgeStatus());
+  edgestatus_.resize();
 
   // Initialize the origin and destination locations
   settled_count_ = 0;
@@ -98,7 +99,7 @@ std::vector<TimeDistance> TimeDistanceMatrix::OneToMany(
     // Mark the edge as permanently labeled. Do not do this for an origin
     // edge (this will allow loops/around the block cases)
     if (!pred.origin()) {
-      edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+      edgestatus_.update(pred.edgeid(), kPermanent);
     }
 
     // Identify any destinations on this edge
@@ -143,8 +144,8 @@ std::vector<TimeDistance> TimeDistanceMatrix::OneToMany(
 
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -172,8 +173,8 @@ std::vector<TimeDistance> TimeDistanceMatrix::OneToMany(
       // Check if edge is temporarily labeled and this path has less cost. If
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change)
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        uint32_t idx = edgestatus.status.index;
+      if (es.state == kTemporary) {
+        uint32_t idx = es.index;
         float dc = edgelabels_[idx].cost().cost - newcost.cost;
         if (dc > 0) {
           float oldsortcost = edgelabels_[idx].sortcost();
@@ -198,7 +199,7 @@ void TimeDistanceMatrix::AddToAdjacencyList(const baldr::GraphId& edgeid,
                                             const float sortcost) {
   uint32_t idx = edgelabels_.size();
   adjacencylist_->add(idx, sortcost);
-  edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+  edgestatus_.set(edgeid, kTemporary, idx);
 }
 
 // Many to one time and distance cost matrix. Computes time and distance
@@ -225,7 +226,7 @@ std::vector<TimeDistance> TimeDistanceMatrix::ManyToOne(
   };
   adjacencylist_.reset(new DoubleBucketQueue(0.0f, initial_cost_threshold_,
                                          bucketsize, edgecost));
-  edgestatus_.reset(new EdgeStatus());
+  edgestatus_.resize();
 
   // Initialize the origin and destination locations
   settled_count_ = 0;
@@ -250,7 +251,7 @@ std::vector<TimeDistance> TimeDistanceMatrix::ManyToOne(
     // Mark the edge as permanently labeled. Do not do this for an origin
     // edge (this will allow loops/around the block cases)
     if (!pred.origin()) {
-      edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+      edgestatus_.update(pred.edgeid(), kPermanent);
     }
 
     // Identify any destinations on this edge
@@ -303,8 +304,8 @@ std::vector<TimeDistance> TimeDistanceMatrix::ManyToOne(
 
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -340,8 +341,8 @@ std::vector<TimeDistance> TimeDistanceMatrix::ManyToOne(
       // Check if edge is temporarily labeled and this path has less cost. If
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change)
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        uint32_t idx = edgestatus.status.index;
+      if (es.state == kTemporary) {
+        uint32_t idx = es.index;
         float dc = edgelabels_[idx].cost().cost - newcost.cost;
         if (dc > 0) {
           float oldsortcost = edgelabels_[idx].sortcost();

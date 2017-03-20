@@ -51,8 +51,7 @@ Isochrone::Isochrone()
       tile_creation_date_(0),
       shape_interval_(50.0f),
       mode_(TravelMode::kDrive),
-      adjacencylist_(nullptr),
-      edgestatus_(nullptr) {
+      adjacencylist_(nullptr) {
 }
 
 // Destructor
@@ -65,7 +64,7 @@ void Isochrone::Clear() {
   // Clear the edge labels, edge status flags, and adjacency list
   edgelabels_.clear();
   adjacencylist_.reset();
-  edgestatus_.reset();
+  edgestatus_.clear();
 }
 
 // Construct the isotile. Use a grid size based on travel mode.
@@ -118,7 +117,7 @@ void Isochrone::Initialize(const uint32_t bucketsize) {
 
   float range = kBucketCount * bucketsize;
   adjacencylist_.reset(new DoubleBucketQueue(0.0f, range, bucketsize, edgecost));
-  edgestatus_.reset(new EdgeStatus());
+  edgestatus_.resize();
 }
 
 // Compute iso-tile that we can use to generate isochrones.
@@ -153,7 +152,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::Compute(
 
     // Copy the EdgeLabel for use in costing and settle the edge.
     EdgeLabel pred = edgelabels_[predindex];
-    edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+    edgestatus_.update(pred.edgeid(), kPermanent);
 
     // Get the end node of the prior directed edge. Skip if tile not found
     // (can happen with regional data sets).
@@ -189,8 +188,8 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::Compute(
 
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -199,7 +198,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::Compute(
       if (directededge->trans_up() || directededge->trans_down()) {
         uint32_t idx = edgelabels_.size();
         adjacencylist_->add(idx, pred.sortcost());
-        edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+        edgestatus_.set(edgeid, kTemporary, idx);
         edgelabels_.emplace_back(predindex, edgeid, directededge->endnode(), pred);
         continue;
       }
@@ -219,15 +218,15 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::Compute(
       // Check if edge is temporarily labeled and this path has less cost. If
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change)
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        CheckIfLowerCostPath(edgestatus.index(), predindex, newcost);
+      if (es.state == kTemporary) {
+        CheckIfLowerCostPath(es.index, predindex, newcost);
         continue;
       }
 
       // Add to the adjacency list and edge labels.
       uint32_t idx = edgelabels_.size();
       adjacencylist_->add(idx, newcost.cost);
-      edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+      edgestatus_.set(edgeid, kTemporary, idx);
       edgelabels_.emplace_back(predindex, edgeid, directededge,
                     newcost, newcost.cost, 0.0f, mode_, 0);
     }
@@ -268,7 +267,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeReverse(
 
     // Copy the EdgeLabel for use in costing and settle the edge.
     EdgeLabel pred = edgelabels_[predindex];
-    edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+    edgestatus_.update(pred.edgeid(), kPermanent);
 
     // Get the end node of the prior directed edge. Skip if tile not found
     // (can happen with regional data sets).
@@ -313,8 +312,8 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeReverse(
 
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -323,7 +322,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeReverse(
       if (directededge->trans_up() || directededge->trans_down()) {
         uint32_t idx = edgelabels_.size();
         adjacencylist_->add(idx, pred.sortcost());
-        edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+        edgestatus_.set(edgeid, kTemporary, idx);
         edgelabels_.emplace_back(predindex, edgeid, directededge->endnode(), pred);
         continue;
       }
@@ -358,15 +357,15 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeReverse(
       // Check if edge is temporarily labeled and this path has less cost. If
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change)
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        CheckIfLowerCostPath(edgestatus.index(), predindex, newcost);
+      if (es.state == kTemporary) {
+        CheckIfLowerCostPath(es.index, predindex, newcost);
         continue;
       }
 
       // Add edge label, add to the adjacency list and set edge status
       uint32_t idx = edgelabels_.size();
       adjacencylist_->add(idx, newcost.cost);
-      edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+      edgestatus_.set(edgeid, kTemporary, idx);
       edgelabels_.emplace_back(predindex, edgeid, oppedge,
                     directededge, newcost, newcost.cost, 0.0f,
                     mode_, tc, false);
@@ -438,7 +437,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeMultiModal(
 
     // Copy the EdgeLabel for use in costing and settle the edge.
     EdgeLabel pred = edgelabels_[predindex];
-    edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+    edgestatus_.update(pred.edgeid(), kPermanent);
 
     // Get the end node. Skip if tile not found (can happen with
     // regional data sets).
@@ -534,8 +533,8 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeMultiModal(
 
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -544,7 +543,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeMultiModal(
       if (directededge->trans_up() || directededge->trans_down()) {
         uint32_t idx = edgelabels_.size();
         adjacencylist_->add(idx, pred.sortcost());
-        edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+        edgestatus_.set(edgeid, kTemporary, idx);
         edgelabels_.emplace_back(predindex, edgeid, directededge->endnode(), pred);
         continue;
       }
@@ -691,8 +690,8 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeMultiModal(
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change). Update
       // trip Id and block Id.
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        uint32_t idx = edgestatus.index();
+      if (es.state == kTemporary) {
+        uint32_t idx = es.index;
         float dc = edgelabels_[idx].cost().cost - newcost.cost;
         if (dc > 0) {
           float oldsortcost = edgelabels_[idx].sortcost();
@@ -707,7 +706,7 @@ std::shared_ptr<const GriddedData<PointLL> > Isochrone::ComputeMultiModal(
       // Add edge label, add to the adjacency list and set edge status
       uint32_t idx = edgelabels_.size();
       adjacencylist_->add(idx, newcost.cost);
-      edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+      edgestatus_.set(edgeid, kTemporary, idx);
       edgelabels_.emplace_back(predindex, edgeid, directededge,
                     newcost, newcost.cost, 0.0f, mode_, walking_distance,
                     tripid, prior_stop, blockid, operator_id, has_transit);
@@ -721,9 +720,9 @@ void Isochrone::UpdateIsoTile(const EdgeLabel& pred, GraphReader& graphreader,
                               const PointLL& ll) {
   // Skip if the opposing edge has already been settled.
   GraphId opp = graphreader.GetOpposingEdgeId(pred.edgeid());
-  EdgeStatusInfo edgestatus = edgestatus_->Get(opp);
-  if (edgestatus.set() == EdgeSet::kPermanent) {
-      return;
+  EdgeState es = edgestatus_.get(opp);
+  if (es.state == kPermanent) {
+    return;
   }
 
   // Get the DirectedEdge because we'll need its shape
@@ -833,7 +832,7 @@ void Isochrone::SetOriginLocations(GraphReader& graphreader,
       uint32_t idx = edgelabels_.size();
       uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.dist));
       adjacencylist_->add(idx, cost.cost);
-      edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+      edgestatus_.set(edgeid, kTemporary, idx);
       EdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost,
                            cost.cost, 0.0f, mode_, d);
       edge_label.set_origin();
@@ -899,7 +898,7 @@ void Isochrone::SetDestinationLocations(GraphReader& graphreader,
       // edge (edgeid) is set.
       uint32_t idx = edgelabels_.size();
       adjacencylist_->add(idx, cost.cost);
-      edgestatus_->Set(opp_edge_id, EdgeSet::kTemporary, idx);
+      edgestatus_.set(opp_edge_id, kTemporary, idx);
       edgelabels_.emplace_back(kInvalidLabel, opp_edge_id, edgeid,
                   opp_dir_edge, cost, cost.cost, 0.0f, mode_, c, false);
     }

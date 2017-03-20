@@ -74,7 +74,7 @@ std::vector<PathInfo> TrafficAlgorithm::GetBestPath(PathLocation& origin,
     // Mark the edge as permanently labeled. Do not do this for an origin
     // edge (this will allow loops/around the block cases)
     if (!pred.origin()) {
-      edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+      edgestatus_.update(pred.edgeid(), kPermanent);
     }
 
     // Check that distance is converging towards the destination. Return route
@@ -123,8 +123,8 @@ std::vector<PathInfo> TrafficAlgorithm::GetBestPath(PathLocation& origin,
 
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -158,8 +158,8 @@ std::vector<PathInfo> TrafficAlgorithm::GetBestPath(PathLocation& origin,
       // Check if edge is temporarily labeled and this path has less cost. If
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change)
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        CheckIfLowerCostPath(edgestatus.index(), predindex, newcost);
+      if (es.state == kTemporary) {
+        CheckIfLowerCostPath(es.index, predindex, newcost);
         continue;
       }
 

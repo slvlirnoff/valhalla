@@ -52,7 +52,7 @@ void CostMatrix::Clear() {
   source_edgelabel_.clear();
 
   for (auto es : source_edgestatus_) {
-    es.Init();
+    es.clear();
   }
   source_edgestatus_.clear();
 
@@ -68,7 +68,7 @@ void CostMatrix::Clear() {
   target_edgelabel_.clear();
 
   for (auto es : target_edgestatus_) {
-    es.Init();
+    es.clear();
   }
   target_edgestatus_.clear();
 
@@ -256,8 +256,8 @@ void CostMatrix::ExpandForward(GraphReader& graphreader,
 
     // Get the current set. Skip this edge if permanently labeled (best
     // path already found to this directed edge).
-    EdgeStatusInfo edgestatus = edgestate.Get(edgeid);
-    if (edgestatus.set() == EdgeSet::kPermanent) {
+    EdgeState es = edgestate.get(edgeid);
+    if (es.state == kPermanent) {
       continue;
     }
 
@@ -275,8 +275,8 @@ void CostMatrix::ExpandForward(GraphReader& graphreader,
 
     // Check if edge is temporarily labeled and this path has less cost. If
     // less cost the predecessor is updated along with new cost and distance.
-    if (edgestatus.set() == EdgeSet::kTemporary) {
-      uint32_t idx = edgestatus.index();
+    if (es.state == kTemporary) {
+      uint32_t idx = es.index;
       if (newcost.cost < edgelabels[idx].cost().cost) {
         float oldsortcost = edgelabels[idx].sortcost();
         edgelabels[idx].Update(pred_idx, newcost, newcost.cost, tc, distance);
@@ -295,7 +295,7 @@ void CostMatrix::ExpandForward(GraphReader& graphreader,
 
     // Add edge label, add to the adjacency list and set edge status
     adj->add(edgelabels.size(), newcost.cost);
-    edgestate.Set(edgeid, EdgeSet::kTemporary, edgelabels.size());
+    edgestate.set(edgeid, kTemporary, edgelabels.size());
     edgelabels.emplace_back(pred_idx, edgeid, oppedge, directededge,
                     newcost, mode_, tc, distance,
                     (pred.not_thru_pruning() || !directededge->not_thru()));
@@ -328,7 +328,7 @@ void CostMatrix::ForwardSearch(const uint32_t index, const uint32_t n,
 
   // Settle this edge
   auto& edgestate = source_edgestatus_[index];
-  edgestate.Update(pred.edgeid(), EdgeSet::kPermanent);
+  edgestate.update(pred.edgeid(), kPermanent);
 
   // Check for connections to backwards search.
   CheckForwardConnections(index, pred, n);
@@ -393,11 +393,11 @@ void CostMatrix::CheckForwardConnections(const uint32_t source,
 
       // If this edge has been reached then a shortest path has been found
       // to the end node of this directed edge.
-      EdgeStatusInfo oppedgestatus = edgestate.Get(oppedge);
-      if (oppedgestatus.set() != EdgeSet::kUnreached) {
+      EdgeState es = edgestate.get(oppedge);
+      if (es.state != kUnreached) {
         const auto& edgelabels = target_edgelabel_[target];
-        uint32_t predidx = edgelabels[oppedgestatus.index()].predecessor();
-        const EdgeLabel& opp_el = edgelabels[oppedgestatus.index()];
+        uint32_t predidx = edgelabels[es.index].predecessor();
+        const EdgeLabel& opp_el = edgelabels[es.index];
 
         // Special case - common edge for source and target are both initial edges
         if (pred.predecessor() == kInvalidLabel && predidx == kInvalidLabel) {
@@ -526,8 +526,8 @@ void CostMatrix::ExpandReverse(GraphReader& graphreader,
 
     // Get the current set. Skip this edge if permanently labeled (best
     // path already found to this directed edge).
-    EdgeStatusInfo edgestatus = edgestate.Get(edgeid);
-    if (edgestatus.set() == EdgeSet::kPermanent) {
+    EdgeState es = edgestate.get(edgeid);
+    if (es.state == kPermanent) {
       continue;
     }
 
@@ -562,8 +562,8 @@ void CostMatrix::ExpandReverse(GraphReader& graphreader,
 
     // Check if edge is temporarily labeled and this path has less cost. If
     // less cost the predecessor is updated along with new cost and distance.
-    if (edgestatus.set() != EdgeSet::kUnreached) {
-      uint32_t idx = edgestatus.index();
+    if (es.state != kUnreached) {
+      uint32_t idx = es.index;
       if (newcost.cost < edgelabels[idx].cost().cost) {
         float oldsortcost = edgelabels[idx].sortcost();
         edgelabels[idx].Update(pred_idx, newcost, newcost.cost, tc, distance);
@@ -575,7 +575,7 @@ void CostMatrix::ExpandReverse(GraphReader& graphreader,
     // Add edge label, add to the adjacency list and set edge status
     // Add to the list or targets that have reached this edge
     adj->add(edgelabels.size(), newcost.cost);
-    edgestate.Set(edgeid, EdgeSet::kTemporary, edgelabels.size());
+    edgestate.set(edgeid, kTemporary, edgelabels.size());
     edgelabels.emplace_back(pred_idx, edgeid, oppedge,
        directededge, newcost, mode_, tc, distance,
        (pred.not_thru_pruning() || !directededge->not_thru()));
@@ -610,7 +610,7 @@ void CostMatrix::BackwardSearch(const uint32_t index,
 
   // Settle this edge
   auto& edgestate = target_edgestatus_[index];
-  edgestate.Update(pred.edgeid(), EdgeSet::kPermanent);
+  edgestate.update(pred.edgeid(), kPermanent);
 
   // Prune path if predecessor is not a through edge
   if (pred.not_thru() && pred.not_thru_pruning()) {

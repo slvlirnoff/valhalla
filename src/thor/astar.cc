@@ -21,7 +21,6 @@ AStarPathAlgorithm::AStarPathAlgorithm()
     : PathAlgorithm(), mode_(TravelMode::kDrive),
       travel_type_(0),
       adjacencylist_(nullptr),
-      edgestatus_(nullptr),
       tile_creation_date_(0) {
 }
 
@@ -40,7 +39,7 @@ void AStarPathAlgorithm::Clear() {
   adjacencylist_.reset();
 
   // Clear the edge status flags
-  edgestatus_.reset();
+  edgestatus_.clear();
 }
 
 // Initialize prior to finding best path
@@ -69,7 +68,7 @@ void AStarPathAlgorithm::Init(const PointLL& origll, const PointLL& destll,
   uint32_t bucketsize = costing->UnitSize();
   float range = kBucketCount * bucketsize;
   adjacencylist_.reset(new DoubleBucketQueue(mincost, range, bucketsize, edgecost));
-  edgestatus_.reset(new EdgeStatus());
+  edgestatus_.resize();
 
   // Get hierarchy limits from the costing. Get a copy since we increment
   // transition counts (i.e., this is not a const reference).
@@ -169,7 +168,7 @@ std::vector<PathInfo> AStarPathAlgorithm::GetBestPath(PathLocation& origin,
     // Mark the edge as permanently labeled. Do not do this for an origin
     // edge (this will allow loops/around the block cases)
     if (!pred.origin()) {
-      edgestatus_->Update(pred.edgeid(), EdgeSet::kPermanent);
+      edgestatus_.update(pred.edgeid(), kPermanent);
     }
 
     // Check that distance is converging towards the destination. Return route
@@ -212,8 +211,8 @@ std::vector<PathInfo> AStarPathAlgorithm::GetBestPath(PathLocation& origin,
                 i++, directededge++, edgeid++) {
       // Get the current set. Skip this edge if permanently labeled (best
       // path already found to this directed edge).
-      EdgeStatusInfo edgestatus = edgestatus_->Get(edgeid);
-      if (edgestatus.set() == EdgeSet::kPermanent) {
+      EdgeState es = edgestatus_.get(edgeid);
+      if (es.state == kPermanent) {
         continue;
       }
 
@@ -276,8 +275,8 @@ std::vector<PathInfo> AStarPathAlgorithm::GetBestPath(PathLocation& origin,
       // Check if edge is temporarily labeled and this path has less cost. If
       // less cost the predecessor is updated and the sort cost is decremented
       // by the difference in real cost (A* heuristic doesn't change)
-      if (edgestatus.set() == EdgeSet::kTemporary) {
-        CheckIfLowerCostPath(edgestatus.index(), predindex, newcost);
+      if (es.state == kTemporary) {
+        CheckIfLowerCostPath(es.index, predindex, newcost);
         continue;
       }
 
@@ -311,7 +310,7 @@ void AStarPathAlgorithm::AddToAdjacencyList(const GraphId& edgeid,
                                        const float sortcost) {
   uint32_t idx = edgelabels_.size();
   adjacencylist_->add(idx, sortcost);
-  edgestatus_->Set(edgeid, EdgeSet::kTemporary, idx);
+  edgestatus_.set(edgeid, kTemporary, idx);
 }
 
 // Check if edge is temporarily labeled and this path has less cost. If
