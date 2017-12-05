@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <stdexcept>
 
 #include <valhalla/meili/priority_queue.h>
 #include <valhalla/meili/stateid.h>
@@ -70,10 +71,11 @@ class IViterbiSearch;
 class StateIdIterator: public std::iterator<std::forward_iterator_tag, StateId>
 {
  public:
-  StateIdIterator(IViterbiSearch& vs, StateId::Time time, const StateId& stateid)
+  StateIdIterator(IViterbiSearch& vs, StateId::Time time, const StateId& stateid, bool allow_breaks = true)
       : vs_(vs),
         time_(time),
-        stateid_(stateid)
+        stateid_(stateid),
+        allow_breaks_(allow_breaks)
   { ValidateStateId(time, stateid); }
 
   StateIdIterator(IViterbiSearch& vs)
@@ -127,33 +129,80 @@ class StateIdIterator: public std::iterator<std::forward_iterator_tag, StateId>
 
   StateId stateid_;
 
+  bool allow_breaks_;
+
   void Next();
 };
+
+using IEmissionCostModel = std::function<float(const StateId& stateid)>;
+
+inline float DefaultEmissionCostModel(const StateId&)
+{ return 0; }
+
+using ITransitionCostModel = std::function<float(const StateId& lhs, const StateId& rhs)>;
+
+inline float DefaultTransitionCostModel(const StateId&, const StateId&)
+{ return 1; }
 
 class IViterbiSearch
 {
  public:
   using stateid_iterator = StateIdIterator;
 
-  IViterbiSearch()
-      : path_end_(stateid_iterator(*this))
+  IViterbiSearch(
+      const IEmissionCostModel& emission_cost_model,
+      const ITransitionCostModel& transition_cost_model)
+      : emission_cost_model_(emission_cost_model),
+        transition_cost_model_(transition_cost_model),
+        path_end_(stateid_iterator(*this))
   {}
 
-  virtual ~IViterbiSearch() {};
+  IViterbiSearch()
+      : IViterbiSearch(DefaultEmissionCostModel, DefaultTransitionCostModel) {}
+
+  virtual ~IViterbiSearch()
+  { Clear(); };
+
+  virtual void Clear()
+  { added_states_.clear(); }
+
+  virtual void ClearSearch() {};
 
   virtual bool AddStateId(const StateId& stateid)
   { return added_states_.insert(stateid).second; }
+
+  /**
+   * Remove a state ID. Note that if an ID is removed, client must call ClearSearch before new search.
+   *
+   * @return true if it's removed
+   */
+  virtual bool RemoveStateId(const StateId& stateid)
+  {
+    return 0 < added_states_.erase(stateid);
+  }
 
   virtual bool HasStateId(const StateId& stateid) const
   { return added_states_.find(stateid) != added_states_.end(); }
 
   virtual StateId SearchWinner(StateId::Time time) = 0;
 
-  stateid_iterator SearchPath(StateId::Time time)
-  { return stateid_iterator(*this, time, SearchWinner(time)); }
+  stateid_iterator SearchPath(StateId::Time time, bool allow_breaks = true)
+  { return stateid_iterator(*this, time, SearchWinner(time), allow_breaks); }
 
   stateid_iterator PathEnd() const
   { return path_end_; }
+
+  const IEmissionCostModel& emission_cost_model() const
+  { return emission_cost_model_; }
+
+  void set_emission_cost_model(const IEmissionCostModel cost_model)
+  { emission_cost_model_ = cost_model; }
+
+  const ITransitionCostModel& transition_cost_model() const
+  { return transition_cost_model_; }
+
+  void set_transition_cost_model(const ITransitionCostModel cost_model)
+  { transition_cost_model_ = cost_model; }
 
   virtual StateId Predecessor(const StateId& stateid) const = 0;
 
@@ -161,21 +210,29 @@ class IViterbiSearch
 
  protected:
   // Calculate transition cost from left state to right state
-  virtual float TransitionCost(const StateId& lhs, const StateId& rhs) const = 0;
+  virtual float TransitionCost(const StateId& lhs, const StateId& rhs) const
+  { return transition_cost_model_(lhs, rhs); }
 
   // Calculate emission cost of a state
-  virtual float EmissionCost(const StateId& state) const = 0;
+  virtual float EmissionCost(const StateId& stateid) const
+  { return emission_cost_model_(stateid); }
 
   // Calculate the a state's costsofar based on its predecessor's
   // costsofar, transition cost from predecessor to this state,
   // and emission cost of this state
-  virtual double CostSofar(double prev_costsofar,
-                           float transition_cost,
-                           float emission_cost) const = 0;
-
-  std::unordered_set<StateId> added_states_;
+  virtual double CostSofar(
+      double prev_costsofar,
+      float transition_cost,
+      float emission_cost) const
+  { return prev_costsofar + transition_cost + emission_cost; }
 
  private:
+  std::unordered_set<StateId> added_states_;
+
+  IEmissionCostModel emission_cost_model_;
+
+  ITransitionCostModel transition_cost_model_;
+
   const stateid_iterator path_end_;
 };
 
@@ -191,9 +248,24 @@ class NaiveViterbiSearch: public IViterbiSearch
   ~NaiveViterbiSearch()
   { Clear(); }
 
-  void Clear();
+  void Clear() override;
+
+  void ClearSearch() override;
 
   bool AddStateId(const StateId& stateid) override;
+
+  bool RemoveStateId(const StateId& stateid) override
+  {
+    const auto removed = IViterbiSearch::RemoveStateId(stateid);
+    if (!removed) {
+      return false;
+    }
+    // remove it from columns
+    auto& column = states_[stateid.time()];
+    const auto it = std::find(column.begin(), column.end(), stateid);
+    column.erase(it);
+    return true;
+  }
 
   StateId SearchWinner(StateId::Time time) override;
 
@@ -201,18 +273,11 @@ class NaiveViterbiSearch: public IViterbiSearch
 
   double AccumulatedCost(const StateId& stateid) const override;
 
- protected:
+ private:
   std::vector<std::vector<StateId>> states_;
 
   std::vector<StateId> winner_;
 
-  virtual float TransitionCost(const StateId& lhs, const StateId& rhs) const override = 0;
-
-  virtual float EmissionCost(const StateId& stateid) const override = 0;
-
-  virtual double CostSofar(double prev_costsofar, float transition_cost, float emission_cost) const override = 0;
-
- private:
   std::vector<std::vector<StateLabel>> history_;
 
   void UpdateLabels(
@@ -231,14 +296,36 @@ class NaiveViterbiSearch: public IViterbiSearch
 class ViterbiSearch: public IViterbiSearch
 {
  public:
-  ViterbiSearch(): earliest_time_(0) {}
+  ViterbiSearch(
+      const IEmissionCostModel& emission_cost_model,
+      const ITransitionCostModel& transition_cost_model)
+      : IViterbiSearch(emission_cost_model, transition_cost_model),
+        earliest_time_(0) {}
+
+  ViterbiSearch()
+      : ViterbiSearch(DefaultEmissionCostModel, DefaultTransitionCostModel) {}
 
   ~ViterbiSearch()
   { Clear(); }
 
-  void Clear();
+  void Clear() override;
+
+  void ClearSearch() override;
 
   bool AddStateId(const StateId& stateid) override;
+
+  bool RemoveStateId(const StateId& stateid) override
+  {
+    const auto removed = IViterbiSearch::RemoveStateId(stateid);
+    if (!removed) {
+      return false;
+    }
+    // remove it from columns
+    auto& column = states_[stateid.time()];
+    const auto it = std::find(column.begin(), column.end(), stateid);
+    column.erase(it);
+    return true;
+  }
 
   StateId SearchWinner(StateId::Time time) override;
 
@@ -251,18 +338,13 @@ class ViterbiSearch: public IViterbiSearch
 
   virtual double AccumulatedCost(const StateId& stateid) const override;
 
- protected:
+ private:
+  std::vector<std::vector<StateId>> states_;
+
   std::vector<StateId> winner_;
 
   std::vector<std::vector<StateId>> unreached_states_;
 
-  virtual float TransitionCost(const StateId& lhs, const StateId& rhs) const override = 0;
-
-  virtual float EmissionCost(const StateId& state) const override = 0;
-
-  virtual double CostSofar(double prev_costsofar, float transition_cost, float emission_cost) const override = 0;
-
- private:
   SPQueue<StateLabel> queue_;
 
   std::unordered_map<StateId, StateLabel> scanned_labels_;

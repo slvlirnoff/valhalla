@@ -22,10 +22,11 @@ constexpr uint16_t kTaxiAccess       = 32;
 constexpr uint16_t kBusAccess        = 64;
 constexpr uint16_t kHOVAccess        = 128;
 constexpr uint16_t kWheelchairAccess = 256;
+constexpr uint16_t kMopedAccess      = 512;
 constexpr uint16_t kAllAccess        = 4095;
 
 // Constant representing vehicular access types
-constexpr uint32_t kVehicularAccess = kAutoAccess | kTruckAccess |
+constexpr uint32_t kVehicularAccess = kAutoAccess | kTruckAccess | kMopedAccess |
                                       kTaxiAccess | kBusAccess | kHOVAccess;
 
 // Maximum number of transit records per tile and other max. transit
@@ -70,6 +71,9 @@ constexpr uint32_t kMaxDensity = 15;
 // so it should be set as low as is reasonable. Speeds above this in OSM are
 // clamped to this maximum value.
 constexpr uint32_t kMaxSpeedKph = 140;      // ~85 MPH
+
+// Maximum ferry speed
+constexpr uint32_t kMaxFerrySpeedKph = 40;  // 21 knots
 
 // Road class or importance of an edge
 enum class RoadClass : uint8_t {
@@ -265,6 +269,7 @@ const std::unordered_map<uint8_t, std::string> UseStrings = {
   {static_cast<uint8_t>(Use::kEmergencyAccess), "emergency_access"},
   {static_cast<uint8_t>(Use::kDriveThru), "drive_through"},
   {static_cast<uint8_t>(Use::kCuldesac), "culdesac"},
+  {static_cast<uint8_t>(Use::kLivingStreet), "living_street"},
   {static_cast<uint8_t>(Use::kCycleway), "cycleway"},
   {static_cast<uint8_t>(Use::kMountainBike), "mountain_bike"},
   {static_cast<uint8_t>(Use::kSidewalk), "sidewalk"},

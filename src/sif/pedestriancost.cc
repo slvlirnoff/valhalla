@@ -59,7 +59,7 @@ constexpr uint32_t kTransitStartEndMaxDistance    = 2415;   // 1.5 miles
 constexpr uint32_t kTransitTransferMaxDistance   = 805;   // 0.5 miles
 
 // Avoid roundabouts
-constexpr float kRoundaboutFactor = 5.0f;
+constexpr float kRoundaboutFactor = 2.0f;
 
 // Maximum ferry penalty (when use_ferry == 0). Can't make this too large
 // since a ferry is sometimes required to complete a route.
@@ -124,6 +124,13 @@ class PedestrianCost : public DynamicCost {
   PedestrianCost(const boost::property_tree::ptree& pt);
 
   virtual ~PedestrianCost();
+
+  /**
+   * Does the costing method allow multiple passes (with relaxed hierarchy
+   * limits).
+   * @return  Returns true if the costing model allows multiple passes.
+   */
+  virtual bool AllowMultiPass() const;
 
   /**
    * This method overrides the max_distance with the max_distance_mm per segment
@@ -317,7 +324,7 @@ class PedestrianCost : public DynamicCost {
   float step_penalty_;    // Penalty applied to steps/stairs (seconds).
   float gate_penalty_;    // Penalty (seconds) to go through gate
   float maneuver_penalty_;          // Penalty (seconds) when inconsistent names
-  float country_crossing_cost_;     // Cost (seconds) to go through toll booth
+  float country_crossing_cost_;     // Cost (seconds) to go across a country border
   float country_crossing_penalty_;  // Penalty (seconds) to go across a country border
   float ferry_cost_;                // Cost (seconds) to exit a ferry
   float ferry_penalty_;             // Penalty (seconds) to enter a ferry
@@ -442,6 +449,11 @@ PedestrianCost::PedestrianCost(const boost::property_tree::ptree& pt)
 
 // Destructor
 PedestrianCost::~PedestrianCost() {
+}
+
+// Allow multiple passes when ferries are on initial path.
+bool PedestrianCost::AllowMultiPass() const {
+  return true;
 }
 
 // This method overrides the max_distance with the max_distance_mm per segment
@@ -643,8 +655,14 @@ Cost PedestrianCost::TransitionCostReverse(
 // assume the maximum speed is used to the destination such that the time
 // estimate is less than the least possible time along roads.
 float PedestrianCost::AStarCostFactor() const {
-  // Use the factor to favor walkways/paths if < 1.0f
-  return (walkway_factor_ < 1.0f) ? walkway_factor_ * speedfactor_ : speedfactor_;
+  // On first pass use the walking speed plus a small factor to account for
+  // favoring walkways, on the second pass use the the maximum ferry speed.
+  if (pass_ == 0) {
+    float speed = kDefaultSpeedFoot * std::min(walkway_factor_, sidewalk_factor_);
+    return (kSecPerHour * 0.001f) / static_cast<float>(speed);
+  } else {
+    return (kSecPerHour * 0.001f) / static_cast<float>(kMaxFerrySpeedKph);
+  }
 }
 
 // Returns the current travel type.

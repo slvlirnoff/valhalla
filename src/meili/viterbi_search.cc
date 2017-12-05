@@ -10,34 +10,35 @@ void StateIdIterator::Next()
 {
   ValidateStateId(time_, stateid_);
 
-  if (time_ == kInvalidTime) {
+  // We're done searching between states if time == 0 meaning we found the last one or
+  // we are at a state without a path to it but aren't allowing breaks in the path
+  if(0 == time_ ||
+      (stateid_.IsValid() && !(stateid_ = vs_.Predecessor(stateid_)).IsValid() && !allow_breaks_)) {
+    time_ = kInvalidTime;
+    stateid_ = StateId();
     return;
   }
 
-  if (0 < time_) {
-    time_ --;
-
-    if (stateid_.IsValid()) {
-      stateid_ = vs_.Predecessor(stateid_);
-    }
-
-    // Search at previous time directly
-    if (!stateid_.IsValid()) {
-      stateid_ = vs_.SearchWinner(time_);
-    }
-  } else {
-    time_ = kInvalidTime;
-    stateid_ = StateId();
-  }
+  // Search at previous time directly
+  // used in cloning path so no need to enforce a continuous path
+  --time_;
+  if (!stateid_.IsValid())
+    stateid_ = vs_.SearchWinner(time_);
 }
 
 template <bool Maximize>
 void NaiveViterbiSearch<Maximize>::Clear()
 {
-  history_.clear();
+  IViterbiSearch::Clear();
   states_.clear();
+  ClearSearch();
+}
+
+template <bool Maximize>
+void NaiveViterbiSearch<Maximize>::ClearSearch()
+{
+  history_.clear();
   winner_.clear();
-  added_states_.clear();
 }
 
 template <bool Maximize>
@@ -210,6 +211,11 @@ bool ViterbiSearch::AddStateId(const StateId& stateid)
     return false;
   }
 
+  while (states_.size() <= stateid.time()) {
+    states_.emplace_back();
+  }
+  states_[stateid.time()].push_back(stateid);
+
   while (unreached_states_.size() <= stateid.time()) {
     unreached_states_.emplace_back();
   }
@@ -272,12 +278,18 @@ double ViterbiSearch::AccumulatedCost(const StateId& stateid) const
 
 void ViterbiSearch::Clear()
 {
+  IViterbiSearch::Clear();
+  states_.clear();
+  ClearSearch();
+}
+
+void ViterbiSearch::ClearSearch()
+{
   earliest_time_ = 0;
   queue_.clear();
   scanned_labels_.clear();
-  unreached_states_.clear();
   winner_.clear();
-  added_states_.clear();
+  unreached_states_ = states_;
 }
 
 void ViterbiSearch::InitQueue(const std::vector<StateId>& column)

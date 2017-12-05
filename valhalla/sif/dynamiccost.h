@@ -7,7 +7,7 @@
 #include <valhalla/baldr/transitdeparture.h>
 #include <valhalla/baldr/graphid.h>
 #include <valhalla/baldr/graphtile.h>
-#include "baldr/double_bucket_queue.h" // For kInvalidLabel
+#include <valhalla/baldr/double_bucket_queue.h> // For kInvalidLabel
 
 #include <memory>
 #include <unordered_set>
@@ -69,6 +69,22 @@ class DynamicCost {
    * @return  Returns true if the costing model allows multiple passes.
    */
   virtual bool AllowMultiPass() const;
+
+  /**
+   * Get the pass number.
+   * @return  Returns the pass through the algorithm.
+   */
+  uint32_t pass() const {
+    return pass_;
+  }
+
+  /**
+   * Set the pass number.
+   * @param  pass  Pass number (incremental).
+   */
+  void set_pass(const uint32_t pass) {
+    pass_ = pass;
+  }
 
   /**
    * Returns the maximum transfer distance between stops that you are willing
@@ -409,6 +425,9 @@ class DynamicCost {
   }
 
  protected:
+  // Algorithm pass
+  uint32_t pass_;
+
   // Flag indicating whether transit connections are allowed.
   bool allow_transit_connections_;
 
