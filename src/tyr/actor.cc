@@ -3,7 +3,6 @@
 #include "loki/worker.h"
 #include "thor/worker.h"
 #include "odin/worker.h"
-#include "skadi/worker.h"
 #include "tyr/serializers.h"
 #include "baldr/rapidjson_utils.h"
 
@@ -49,24 +48,21 @@ namespace valhalla {
 
     struct actor_t::pimpl_t {
       pimpl_t(const boost::property_tree::ptree& config):
-        loki_worker(config), thor_worker(config), odin_worker(config), skadi_worker(config) {
+        loki_worker(config), thor_worker(config), odin_worker(config) {
       }
       void set_interrupts(const std::function<void ()>& interrupt_function) {
         loki_worker.set_interrupt(interrupt_function);
         thor_worker.set_interrupt(interrupt_function);
         odin_worker.set_interrupt(interrupt_function);
-        skadi_worker.set_interrupt(interrupt_function);
       }
       void cleanup() {
         loki_worker.cleanup();
         thor_worker.cleanup();
         odin_worker.cleanup();
-        skadi_worker.cleanup();
       }
       loki::loki_worker_t loki_worker;
       thor::thor_worker_t thor_worker;
       odin::odin_worker_t odin_worker;
-      skadi::skadi_worker_t skadi_worker;
     };
 
     actor_t::actor_t(const boost::property_tree::ptree& config, bool auto_cleanup): pimpl(new pimpl_t(config)), auto_cleanup(auto_cleanup) {
@@ -87,8 +83,13 @@ namespace valhalla {
       auto date_time_type = GetOptionalFromRapidJson<int>(request, "/date_time.type");
       auto request_pt = to_ptree(request);
       auto legs = pimpl->thor_worker.route(request_pt, date_time_type);
+      //parse the options for directions
+      auto directions_options = pimpl->odin_worker.parse_options(request_pt);
+      //gpx output
+      if(directions_options.format() == DirectionsOptions::Format::DirectionsOptions_Format_gpx)
+        return pathToGPX(legs);
       //get some directions back from them
-      auto directions = pimpl->odin_worker.narrate(request_pt, legs);
+      auto directions = pimpl->odin_worker.narrate(directions_options, legs);
       //serialize them out to json string
       auto json = tyr::serializeDirections(ROUTE, request_pt, directions);
       std::stringstream ss;
@@ -142,8 +143,13 @@ namespace valhalla {
       auto request_pt = to_ptree(request);
       //compute compute all pairs and then the shortest path through them all
       auto legs = pimpl->thor_worker.optimized_route(request_pt);
+      //parse the options for directions
+      auto directions_options = pimpl->odin_worker.parse_options(request_pt);
+      //gpx output
+      if(directions_options.format() == DirectionsOptions::Format::DirectionsOptions_Format_gpx)
+        return pathToGPX(legs);
       //get some directions back from them
-      auto directions = pimpl->odin_worker.narrate(request_pt, legs);
+      auto directions = pimpl->odin_worker.narrate(directions_options, legs);
       //serialize them out to json string
       auto json = tyr::serializeDirections(ROUTE, request_pt, directions);
       std::stringstream ss;
@@ -182,8 +188,13 @@ namespace valhalla {
       //route between the locations in the graph to find the best path
       auto request_pt = to_ptree(request);
       std::list<TripPath> legs{pimpl->thor_worker.trace_route(request_pt)};
+      //parse the options for directions
+      auto directions_options = pimpl->odin_worker.parse_options(request_pt);
+      //gpx output
+      if(directions_options.format() == DirectionsOptions::Format::DirectionsOptions_Format_gpx)
+        return pathToGPX(legs);
       //get some directions back from them
-      auto directions = pimpl->odin_worker.narrate(request_pt, legs);
+      auto directions = pimpl->odin_worker.narrate(directions_options, legs);
       //serialize them out to json string
       auto json = tyr::serializeDirections(ROUTE, request_pt, directions);
       std::stringstream ss;
@@ -218,7 +229,7 @@ namespace valhalla {
       //parse the request
       auto request_rj = to_document(request_str);
       //get the height at each point
-      auto json = pimpl->skadi_worker.height(request_rj);
+      auto json = pimpl->loki_worker.height(request_rj);
       std::stringstream ss;
       ss << *json;
       //if they want you do to do the cleanup automatically
