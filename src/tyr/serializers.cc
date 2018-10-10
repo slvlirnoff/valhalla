@@ -689,6 +689,12 @@ namespace {
                     valhalla::midgard::logging::Log("transit_stopid::" + transit_stop.station_onestop_id(), " [ANALYTICS] ");
                 }
 
+                // onestop_id - using the station onestop_id
+                if (transit_stop.has_onestop_id()) {
+                    json_transit_stop->emplace("platform_onestop_id", transit_stop.onestop_id());
+                    valhalla::midgard::logging::Log("transit_platform_stopid::" + transit_stop.onestop_id(), " [ANALYTICS] ");
+                }
+
                 // name - using the station name
                 if (transit_stop.has_station_name()) {
                     json_transit_stop->emplace("name", transit_stop.station_name());

@@ -192,7 +192,12 @@ std::vector<PathInfo> MultiModalPathAlgorithm::GetBestPath(
     // Copy the EdgeLabel for use in costing. Check if this is a destination
     // edge and potentially complete the path.
     MMEdgeLabel pred = edgelabels_[predindex];
+    bool has_transit = pred.has_transit();
     if (destinations_.find(pred.edgeid()) != destinations_.end()) {
+      if(!has_transit) {
+        LOG_INFO("Prevent form_path because no fucking transit yet");
+        continue;
+      }
       // Check if a trivial path. Skip if no predecessor and not
       // trivial (cannot reach destination along this one edge).
       if (pred.predecessor() == kInvalidLabel) {
@@ -217,6 +222,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::GetBestPath(
       mindist = dist2dest;
       nc = 0;
     } else if (nc++ > 500000) {
+      LOG_INFO("Not converging ...");
       return {};
     }
 
@@ -254,7 +260,6 @@ std::vector<PathInfo> MultiModalPathAlgorithm::GetBestPath(
     // Get any transfer times and penalties if this is a transit stop (and
     // transit has been taken at some point on the path) and mode is pedestrian
     mode_ = pred.mode();
-    bool has_transit = pred.has_transit();
     GraphId prior_stop = pred.prior_stopid();
     uint32_t operator_id = pred.transit_operator();
     if (nodeinfo->type() == NodeType::kMultiUseTransitPlatform) {
@@ -369,7 +374,6 @@ std::vector<PathInfo> MultiModalPathAlgorithm::GetBestPath(
           // Update trip Id and block Id
           tripid  = departure->tripid();
           blockid = departure->blockid();
-          has_transit = true;
 
           // There is no cost to remain on the same trip or valid blockId
           if ( tripid == pred.tripid() ||
@@ -402,11 +406,23 @@ std::vector<PathInfo> MultiModalPathAlgorithm::GetBestPath(
               // TODO - create a configurable operator change penalty
               newcost.cost += 300;
             }
-            else newcost.cost += transfer_cost.cost;
+
+            newcost.cost += transfer_cost.cost;
+          }
+
+          if(!has_transit) {
+            // If first transit line remove waiting time into cost
+            // this should favor transit over direct pedestrian
+            // TODO: weight it down instead to prefer transit options that
+            // arrives earlier even if higher cost because slower
+            LOG_INFO("remove transit first waiting time from cost " + std::to_string(departure->departure_time() - localtime));
+            // Up to one hour ...
+            newcost.cost -= std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
           }
 
           // Change mode and costing to transit. Add edge cost.
           mode_ = TravelMode::kPublicTransit;
+          has_transit = true;
           newcost += tc->EdgeCost(directededge, departure, localtime);
         } else {
           // No matching departures found for this edge
