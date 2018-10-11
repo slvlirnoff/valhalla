@@ -410,12 +410,17 @@ std::vector<PathInfo> MultiModalPathAlgorithm::GetBestPath(
             newcost.cost += transfer_cost.cost;
           }
 
-          if(!has_transit) {
+          if(!pred.has_transit()) {
             // If first transit line remove waiting time into cost
             // this should favor transit over direct pedestrian
             // TODO: weight it down instead to prefer transit options that
             // arrives earlier even if higher cost because slower
             LOG_INFO("remove transit first waiting time from cost " + std::to_string(departure->departure_time() - localtime));
+            LOG_INFO("- locatime " + std::to_string(localtime));
+            LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
+            LOG_INFO("=> max 10 mn => " + std::to_string( std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime) ));
+
+
             // Up to one hour ...
             newcost.cost -= std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
           }
