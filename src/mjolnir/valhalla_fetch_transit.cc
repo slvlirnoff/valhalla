@@ -612,7 +612,7 @@ bool get_stop_pairs(Transit& tile,
         get_stop_patterns(tile, shapes, new_response);
         // please sir may i have some more?
         request = new_response.get_optional<std::string>("meta.next");
-      } while (request && (request = *request + api_key));
+      } while (request);
 
       LOG_INFO("found");
       if (route == routes.cend()) {
