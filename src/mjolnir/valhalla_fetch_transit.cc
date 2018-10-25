@@ -553,7 +553,11 @@ bool get_stop_pairs(Transit& tile,
                     const std::unordered_map<std::string, size_t>& shapes,
                     const ptree& response,
                     const std::unordered_map<std::string, uint64_t>& stops,
-                    const std::unordered_map<std::string, size_t>& routes) {
+                    const std::unordered_map<std::string, size_t>& routes,
+                    const std::unordered_map<std::string, std::string>& websites,
+                    const std::unordered_map<std::string, std::string>& short_names,
+                    const ptree& pt
+                ) {
   bool dangles = false;
   for (const auto& pair_pt : response.get_child("schedule_stop_pairs")) {
     auto* pair = tile.add_stop_pairs();
@@ -600,14 +604,31 @@ bool get_stop_pairs(Transit& tile,
     auto route_id = pair_pt.second.get<std::string>("route_onestop_id");
     auto route = routes.find(route_id);
     if (route == routes.cend()) {
-      uniques.lock.lock();
-      if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
-        LOG_ERROR("No route " + route_id +  " for stop in  " + pair->origin_onestop_id()  + " to " + pair->destination_onestop_id() );
-        uniques.missing_routes.emplace(route_id);
+      boost::optional<std::string> request =
+        url((boost::format(
+                 "/api/v1/"
+                 "routes?total=false&include_geometry=false&onestop_id=%1%") % route_id)
+                .str(),
+            pt);
+
+      //uniques.lock.lock();
+      //if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
+      LOG_INFO("No route - calling it live " + route_id);
+      
+      response = curler(*request, "routes");
+      get_routes(tile, routes, websites, short_names, response);
+      auto route = routes.find(route_id);
+      if (route == routes.cend()) {
+        LOG_ERROR("Really no route ... fail miserably");
+        tile.mutable_stop_pairs()->RemoveLast();
+        continue;
       }
-      uniques.lock.unlock();
-      tile.mutable_stop_pairs()->RemoveLast();
-      continue;
+
+      //  uniques.missing_routes.emplace(route_id);
+      //}
+      //uniques.lock.unlock();
+      //tile.mutable_stop_pairs()->RemoveLast();
+      //continue;
     }
     pair->set_route_index(route->second);
 
@@ -927,7 +948,7 @@ void fetch_tiles(const ptree& pt,
         // grab some stuff
         response = curler(*request, "schedule_stop_pairs");
         // copy pairs in, noting if any dont have stops
-        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes) || dangles;
+        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites, short_names, pt) || dangles;
         // if stop pairs is large save to a path with an incremented extension
         if (tile.stop_pairs_size() >= 500000) {
           LOG_INFO("Writing " + transit_tile.string());
