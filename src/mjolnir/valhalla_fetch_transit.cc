@@ -89,7 +89,7 @@ struct pt_curler_t {
       long http_code = 0;
       std::string log_extra = "Couldn't fetch url ";
       // can we fetch this url
-      LOG_DEBUG(url);
+      LOG_INFO(url);
       if (curl_easy_perform(connection.get()) == CURLE_OK) {
         curl_easy_getinfo(connection.get(), CURLINFO_RESPONSE_CODE, &http_code);
         log_extra = std::to_string(http_code) + "'d ";
@@ -172,6 +172,19 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   auto request = url("/api/v1/feeds.geojson?per_page=false", pt);
   request += transit_bounding_box;
   request += active_feed_version_import_level;
+
+  auto bbox = "" + pt.get<std::string>("mjolnir.transit_bounding_box");
+  std::vector<std::string> parts;
+  LOG_WARN("Parsing in parts: " + transit_bounding_box);
+  boost::algorithm::split(parts, bbox, boost::is_any_of(","));
+
+  LOG_WARN("Parsing in parts: " + parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]);
+
+  auto fixed_min_x = std::stof(parts[0]);
+  auto fixed_min_y = std::stof(parts[1]);
+  auto fixed_max_x = std::stof(parts[2]);
+  auto fixed_max_y = std::stof(parts[3]);
+
   auto feeds = curler(request, "features");
   for (const auto& feature : feeds.get_child("features")) {
 
@@ -184,6 +197,8 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         LOG_WARN("Skipping non-polygonal feature: " + feature.second.get_value<std::string>());
         continue;
       }
+
+      // 5.956649780273437,46.222127524002886,7.24273681640625,46.4851559004343
       // grab the tile row and column ranges for the max box around the polygon
       float min_x = 180, max_x = -180, min_y = 90, max_y = -90;
       for (const auto& coord : feature.second.get_child("geometry.coordinates").front().second) {
@@ -201,6 +216,20 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (y > max_y) {
           max_y = y;
         }
+	if (min_x < fixed_min_x) {
+	  min_x = fixed_min_x;
+	}
+	if (max_x > fixed_max_x) {
+	  max_x = fixed_max_x;
+	}
+        if (min_y < fixed_min_y) {
+          min_y = fixed_min_y;
+        }
+        if (max_y > fixed_max_y) {
+          max_y = fixed_max_y;
+        }
+        LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " + std::to_string(min_y) + " " + std::to_string(max_y) );
+
       }
 
       // expand the top and bottom edges of the box to account for geodesics
@@ -428,7 +457,9 @@ void get_routes(Transit& tile,
     } else if (vehicle_type == "metro") {
       type = Transit_VehicleType::Transit_VehicleType_kMetro;
     } else if (vehicle_type == "rail" || vehicle_type == "suburban_railway" ||
-               vehicle_type == "railway_service") {
+               vehicle_type == "railway_service" || vehicle_type == "sleeper_rail_service" ||
+	     vehicle_type == "long_distance_trains" || vehicle_type == "regional_rail_service" ||
+	     vehicle_type == "inter_regional_rail_service" ||  vehicle_type == "null") {
       type = Transit_VehicleType::Transit_VehicleType_kRail;
     } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" ||
                vehicle_type == "express_bus_service" || vehicle_type == "local_bus_service" ||
@@ -436,9 +467,9 @@ void get_routes(Transit& tile,
                vehicle_type == "demand_and_response_bus_service" ||
                vehicle_type == "regional_bus_service" || vehicle_type == "coach_service") {
       type = Transit_VehicleType::Transit_VehicleType_kBus;
-    } else if (vehicle_type == "ferry") {
+    } else if (vehicle_type == "ferry" || vehicle_type == "water_transport_service") {
       type = Transit_VehicleType::Transit_VehicleType_kFerry;
-    } else if (vehicle_type == "cablecar") {
+    } else if (vehicle_type == "cablecar" || vehicle_type == "miscellaneous_service") {
       type = Transit_VehicleType::Transit_VehicleType_kCableCar;
     } else if (vehicle_type == "gondola") {
       type = Transit_VehicleType::Transit_VehicleType_kGondola;
@@ -571,7 +602,7 @@ bool get_stop_pairs(Transit& tile,
     if (route == routes.cend()) {
       uniques.lock.lock();
       if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
-        LOG_ERROR("No route " + route_id);
+        LOG_ERROR("No route " + route_id +  " for stop in  " + pair->origin_onestop_id()  + " to " + pair->destination_onestop_id() );
         uniques.missing_routes.emplace(route_id);
       }
       uniques.lock.unlock();
@@ -1151,7 +1182,7 @@ int main(int argc, char** argv) {
   auto transit_tiles = which_tiles(pt, feed);
   // spawn threads to download all the tiles returning a list of
   // tiles that ended up having dangling stop pairs
-  auto dangling_tiles = fetch(pt, transit_tiles);
+  auto dangling_tiles = fetch(pt, transit_tiles, 1);
   curl_global_cleanup();
 
   // figure out which transit tiles even exist
