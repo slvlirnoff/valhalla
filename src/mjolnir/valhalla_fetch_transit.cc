@@ -585,8 +585,8 @@ bool get_stop_pairs(Transit& tile,
       //if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
       LOG_INFO("No route - calling it live " + route_id);
       
-      response = curler(*request, "routes");
-      get_routes(tile, routes, websites, short_names, response);
+      auto new_response = curler(*request, "routes");
+      get_routes(tile, routes, websites, short_names, new_response);
       auto route = routes.find(route_id);
       if (route == routes.cend()) {
         LOG_ERROR("Really no route ... fail miserably");
