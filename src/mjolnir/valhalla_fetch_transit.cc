@@ -554,9 +554,10 @@ bool get_stop_pairs(Transit& tile,
                     const ptree& response,
                     const std::unordered_map<std::string, uint64_t>& stops,
                     const std::unordered_map<std::string, size_t>& routes,
-                    const std::unordered_map<std::string, std::string>& websites,
-                    const std::unordered_map<std::string, std::string>& short_names,
-                    const ptree& pt
+                    std::unordered_map<std::string, std::string>& websites,
+                    std::unordered_map<std::string, std::string>& short_names,
+                    const ptree& pt,
+                    pt_curler_t curler
                 ) {
   bool dangles = false;
   for (const auto& pair_pt : response.get_child("schedule_stop_pairs")) {
@@ -948,7 +949,7 @@ void fetch_tiles(const ptree& pt,
         // grab some stuff
         response = curler(*request, "schedule_stop_pairs");
         // copy pairs in, noting if any dont have stops
-        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites, short_names, pt) || dangles;
+        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites, short_names, pt, curler) || dangles;
         // if stop pairs is large save to a path with an incremented extension
         if (tile.stop_pairs_size() >= 500000) {
           LOG_INFO("Writing " + transit_tile.string());
