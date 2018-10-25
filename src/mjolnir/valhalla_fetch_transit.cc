@@ -550,7 +550,7 @@ struct unique_transit_t {
 
 bool get_stop_pairs(Transit& tile,
                     unique_transit_t& uniques,
-                    const std::unordered_map<std::string, size_t>& shapes,
+                    std::unordered_map<std::string, size_t>& shapes,
                     const ptree& response,
                     const std::unordered_map<std::string, uint64_t>& stops,
                     std::unordered_map<std::string, size_t>& routes,
@@ -617,8 +617,35 @@ bool get_stop_pairs(Transit& tile,
       LOG_INFO("No route - calling it live " + route_id);
       
       auto new_response = curler(*request, "routes");
+      LOG_INFO("No route - got it");
+
       get_routes(tile, routes, websites, short_names, new_response);
-      auto route = routes.find(route_id);
+
+
+      route = routes.find(route_id);
+
+      if (route == routes.cend()) {
+        LOG_ERROR("Really no route ... fail miserably");
+        tile.mutable_stop_pairs()->RemoveLast();
+        continue;
+      }
+
+      // Get shapes of this route
+      request = url((boost::format(
+                   "/api/v1/route_stop_patterns?total=false&per_page=100&traversed_by=%2%") %
+               pt.get<std::string>("per_page") % url_encode(route->first))
+                  .str(),
+              pt);
+      do {
+        // grab some stuff
+        new_response = curler(*request, "route_stop_patterns");
+        // copy shapes in.
+        get_stop_patterns(tile, shapes, new_response);
+        // please sir may i have some more?
+        request = new_response.get_optional<std::string>("meta.next");
+      } while (request && (request = *request + api_key));
+
+      LOG_INFO("found");
       if (route == routes.cend()) {
         LOG_ERROR("Really no route ... fail miserably");
         tile.mutable_stop_pairs()->RemoveLast();
