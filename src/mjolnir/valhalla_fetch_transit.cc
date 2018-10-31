@@ -984,11 +984,12 @@ void fetch_tiles(const ptree& pt,
         dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites, short_names, pt, curler) || dangles;
         // if stop pairs is large save to a path with an incremented extension
         if (tile.stop_pairs_size() >= 500000) {
+          // Start by writting .pbf.0, .pbf.1, .pbf.2
+          transit_tile = prefix + '.' + std::to_string(ext++);
           LOG_INFO("Writing " + transit_tile.string());
           write_pbf(tile, transit_tile.string());
           // reset everything
           tile.Clear();
-          transit_tile = prefix + '.' + std::to_string(ext++);
         }
         // please sir may i have some more?
         request = response.get_optional<std::string>("meta.next");
@@ -1000,8 +1001,9 @@ void fetch_tiles(const ptree& pt,
       dangling.emplace_back(current);
     }
 
-    // save the last tile
+    // save the last tile (.pbf) which has the most routes saved in it
     if (tile.stop_pairs_size()) {
+      transit_tile = prefix;
       write_pbf(tile, transit_tile.string());
     }
   }
