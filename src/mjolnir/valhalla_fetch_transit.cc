@@ -173,18 +173,25 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   request += transit_bounding_box;
   request += active_feed_version_import_level;
 
-  auto bbox = "" + pt.get<std::string>("mjolnir.transit_bounding_box");
+  auto bbox = pt.get_optional<std::string>("mjolnir.transit_bounding_box") ? pt.get<std::string>("mjolnir.transit_bounding_box") : "";
+  auto fixed_min_x = -180;
+  auto fixed_min_y = -90;
+  auto fixed_max_x = 180;
+  auto fixed_max_y = 90;
+
+  if(bbox != "") {
   std::vector<std::string> parts;
   LOG_WARN("Parsing in parts: " + transit_bounding_box);
   boost::algorithm::split(parts, bbox, boost::is_any_of(","));
 
   LOG_WARN("Parsing in parts: " + parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]);
 
-  auto fixed_min_x = std::stof(parts[0]);
-  auto fixed_min_y = std::stof(parts[1]);
-  auto fixed_max_x = std::stof(parts[2]);
-  auto fixed_max_y = std::stof(parts[3]);
+  fixed_min_x = std::stof(parts[0]);
+  fixed_min_y = std::stof(parts[1]);
+  fixed_max_x = std::stof(parts[2]);
+  fixed_max_y = std::stof(parts[3]);
 
+  }
   auto feeds = curler(request, "features");
   for (const auto& feature : feeds.get_child("features")) {
 
@@ -643,7 +650,7 @@ bool get_stop_pairs(Transit& tile,
         get_stop_patterns(tile, shapes, new_response);
         // please sir may i have some more?
         request = new_response.get_optional<std::string>("meta.next");
-      } while (request && (request = *request + api_key));
+      } while (request);
 
       LOG_INFO("found");
       if (route == routes.cend()) {
@@ -1231,7 +1238,7 @@ int main(int argc, char** argv) {
   auto transit_tiles = which_tiles(pt, feed);
   // spawn threads to download all the tiles returning a list of
   // tiles that ended up having dangling stop pairs
-  auto dangling_tiles = fetch(pt, transit_tiles, 1);
+  auto dangling_tiles = fetch(pt, transit_tiles);
   curl_global_cleanup();
 
   // figure out which transit tiles even exist
