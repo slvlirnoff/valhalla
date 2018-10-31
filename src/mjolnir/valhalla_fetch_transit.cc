@@ -612,10 +612,15 @@ bool get_stop_pairs(Transit& tile,
     auto route_id = pair_pt.second.get<std::string>("route_onestop_id");
     auto route = routes.find(route_id);
     if (route == routes.cend()) {
+      if(route_id == "null") {
+        LOG_ERROR("route_id is null, removed");
+        tile.mutable_stop_pairs()->RemoveLast();
+        continue; 
+      }
       boost::optional<std::string> request =
         url((boost::format(
                  "/api/v1/"
-                 "routes?total=false&include_geometry=false&onestop_id=%1%") % route_id)
+                 "routes?total=false&include_geometry=false&onestop_id=%1%") % url_encode(route_id))
                 .str(),
             pt);
 
@@ -624,10 +629,9 @@ bool get_stop_pairs(Transit& tile,
       LOG_INFO("No route - calling it live " + route_id);
       
       auto new_response = curler(*request, "routes");
-      LOG_INFO("No route - got it");
-
+      int old_size = tile.routes_size();
       get_routes(tile, routes, websites, short_names, new_response);
-
+      LOG_INFO("route number went from " + std::to_string(old_size) + " to " + std::to_string(tile.routes_size()));
 
       route = routes.find(route_id);
 
@@ -652,13 +656,7 @@ bool get_stop_pairs(Transit& tile,
         request = new_response.get_optional<std::string>("meta.next");
       } while (request);
 
-      LOG_INFO("found");
-      if (route == routes.cend()) {
-        LOG_ERROR("Really no route ... fail miserably");
-        tile.mutable_stop_pairs()->RemoveLast();
-        continue;
-      }
-
+      LOG_INFO("Route index will be " + std::to_string(route->second));
       //  uniques.missing_routes.emplace(route_id);
       //}
       //uniques.lock.unlock();

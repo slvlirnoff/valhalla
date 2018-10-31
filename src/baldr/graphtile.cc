@@ -859,6 +859,7 @@ const TransitRoute* GraphTile::GetTransitRoute(const uint32_t idx) const {
   if (idx < count) {
     return &transit_routes_[idx];
   }
+
   void *array[10];
   size_t size;
 
