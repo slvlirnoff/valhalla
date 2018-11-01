@@ -1,3 +1,4 @@
+
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -174,10 +175,10 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   request += active_feed_version_import_level;
 
   auto bbox = pt.get_optional<std::string>("mjolnir.transit_bounding_box") ? pt.get<std::string>("mjolnir.transit_bounding_box") : "";
-  auto fixed_min_x = -180;
-  auto fixed_min_y = -90;
-  auto fixed_max_x = 180;
-  auto fixed_max_y = 90;
+  auto fixed_min_x = -180.0;
+  auto fixed_min_y = -90.0;
+  auto fixed_max_x = 180.0;
+  auto fixed_max_y = 90.0;
 
   if(bbox != "") {
   std::vector<std::string> parts;
@@ -190,6 +191,7 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   fixed_min_y = std::stof(parts[1]);
   fixed_max_x = std::stof(parts[2]);
   fixed_max_y = std::stof(parts[3]);
+
 
   }
   auto feeds = curler(request, "features");
@@ -236,6 +238,7 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
           max_y = fixed_max_y;
         }
         LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " + std::to_string(min_y) + " " + std::to_string(max_y) );
+        LOG_INFO("fixed boundary: " + std::to_string(fixed_min_x) + " " + std::to_string(fixed_max_x) + " " + std::to_string(fixed_min_y) + " " + std::to_string(fixed_max_y) );
 
       }
 
@@ -468,7 +471,7 @@ void get_routes(Transit& tile,
 	     vehicle_type == "long_distance_trains" || vehicle_type == "regional_rail_service" ||
 	     vehicle_type == "inter_regional_rail_service" ||  vehicle_type == "null") {
       type = Transit_VehicleType::Transit_VehicleType_kRail;
-    } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" ||
+    } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" || vehicle_type == "taxi_service" || // sbb oftern marks replacement bus as taxi_service
                vehicle_type == "express_bus_service" || vehicle_type == "local_bus_service" ||
                vehicle_type == "bus_service" || vehicle_type == "shuttle_bus" ||
                vehicle_type == "demand_and_response_bus_service" ||
