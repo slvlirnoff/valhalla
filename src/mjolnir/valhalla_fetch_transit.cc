@@ -950,8 +950,8 @@ void fetch_tiles(const ptree& pt,
           transit_tile = prefix + '.' + std::to_string(ext++);
           LOG_INFO("Writing " + transit_tile.string());
           write_pbf(tile, transit_tile.string());
-          // reset everything
-          tile.Clear();
+          // reset stop pairs, keep on accumulating the others
+          tile.clear_stop_pairs();
         }
         // please sir may i have some more?
         request = response.get_optional<std::string>("meta.next");
