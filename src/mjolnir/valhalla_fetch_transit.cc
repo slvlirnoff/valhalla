@@ -469,7 +469,7 @@ void get_routes(Transit& tile,
     } else if (vehicle_type == "rail" || vehicle_type == "suburban_railway" ||
                vehicle_type == "railway_service" || vehicle_type == "sleeper_rail_service" ||
 	     vehicle_type == "long_distance_trains" || vehicle_type == "regional_rail_service" ||
-	     vehicle_type == "inter_regional_rail_service" ||  vehicle_type == "null") {
+	     vehicle_type == "inter_regional_rail_service" ||  vehicle_type == "null" || vehicle_type == "high_speed_rail_service") {
       type = Transit_VehicleType::Transit_VehicleType_kRail;
     } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" || vehicle_type == "taxi_service" || // sbb oftern marks replacement bus as taxi_service
                vehicle_type == "express_bus_service" || vehicle_type == "local_bus_service" ||
