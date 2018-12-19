@@ -174,6 +174,7 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   request += transit_bounding_box;
   request += active_feed_version_import_level;
 
+  // For test purpose, transit_bounding_box wasn't working properly, fixed it.
   auto bbox = pt.get_optional<std::string>("mjolnir.transit_bounding_box") ? pt.get<std::string>("mjolnir.transit_bounding_box") : "";
   auto fixed_min_x = -180.0;
   auto fixed_min_y = -90.0;
@@ -225,12 +226,12 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (y > max_y) {
           max_y = y;
         }
-	if (min_x < fixed_min_x) {
-	  min_x = fixed_min_x;
-	}
-	if (max_x > fixed_max_x) {
-	  max_x = fixed_max_x;
-	}
+      	if (min_x < fixed_min_x) {
+      	  min_x = fixed_min_x;
+      	}
+      	if (max_x > fixed_max_x) {
+      	  max_x = fixed_max_x;
+      	}
         if (min_y < fixed_min_y) {
           min_y = fixed_min_y;
         }
