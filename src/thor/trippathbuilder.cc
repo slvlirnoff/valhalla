@@ -862,8 +862,7 @@ TripPathBuilder::Build(const AttributesController& controller,
         // Set onstop_id if requested
         if (controller.attributes.at(kNodeTransitPlatformInfoOnestopId) &&
             transit_platform->one_stop_offset()) {
-          transit_platform_info->set_onestop_id(
-              graphtile->GetName(transit_platform->one_stop_offset()));
+          transit_platform_info->set_onestop_id(graphtile->GetName(transit_platform->one_stop_offset()));
         }
 
         // Set name if requested

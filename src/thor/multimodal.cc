@@ -195,7 +195,7 @@ MultiModalPathAlgorithm::GetBestPath(odin::Location& origin,
     bool has_transit = pred.has_transit();
     if (destinations_.find(pred.edgeid()) != destinations_.end()) {
       if(!has_transit) {
-        LOG_INFO("Prevent form_path because no fucking transit yet");
+        LOG_INFO("Prevent form_path because no transit yet");
         continue;
       }
       // Check if a trivial path. Skip if no predecessor and not
@@ -436,11 +436,12 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           // this should favor transit over direct pedestrian
           // TODO: weight it down instead to prefer transit options that
           // arrives earlier even if higher cost because slower
+          /*
           LOG_INFO("remove transit first waiting time from cost " + std::to_string(departure->departure_time() - localtime));
           LOG_INFO("- locatime " + std::to_string(localtime));
           LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
           LOG_INFO("=> max 10 mn => " + std::to_string( std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime) ));
-
+	  */
 
           // Up to one hour ...
           newcost.cost -= std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
