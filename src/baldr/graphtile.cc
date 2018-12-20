@@ -17,6 +17,12 @@
 #include <string>
 #include <vector>
 
+#include <stdio.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 namespace {
 struct dir_facet : public std::numpunct<char> {
 protected:
@@ -855,7 +861,17 @@ const TransitRoute* GraphTile::GetTransitRoute(const uint32_t idx) const {
   if (idx < count) {
     return &transit_routes_[idx];
   }
-  throw std::runtime_error("GraphTile GetTransitRoute index out of bounds");
+
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+
+  throw std::runtime_error("GraphTile GetTransitRoute index out of bounds " + std::to_string(idx) + " count: " + std::to_string(header_->routecount()));
 }
 
 // Get the transit schedule given its schedule index.

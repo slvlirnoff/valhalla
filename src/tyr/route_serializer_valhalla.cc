@@ -475,6 +475,12 @@ json::ArrayPtr legs(const std::list<valhalla::odin::TripDirections>& directions_
               valhalla::midgard::logging::Log("transit_stopid::" + transit_stop.station_onestop_id(),
                                               " [ANALYTICS] ");
             }
+            // platform_onestop_id - using the onestop_id
+            if (transit_stop.has_onestop_id()) {
+              json_transit_stop->emplace("platform_onestop_id", transit_stop.onestop_id());
+              valhalla::midgard::logging::Log("platform_onestop_id::" + transit_stop.station_onestop_id(),
+                                              " [ANALYTICS] ");
+            }
 
             // name - using the station name
             if (transit_stop.has_station_name()) {

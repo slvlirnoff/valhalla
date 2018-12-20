@@ -256,6 +256,23 @@ ProcessStopPairs(GraphTileBuilder& transit_tilebuilder,
             departures.emplace(dep.orig_pbf_graphid, dep);
             while (origin_seconds >= kSecondsPerDay) {
               origin_seconds -= kSecondsPerDay;
+
+              // Here we need to fix the dow mask and dates
+              days = shift_service_day(days, end_date, tile_date);
+              dow_mask = ((dow_mask << 1) & kAllDaysOfWeek) | (dow_mask & kSaturday ? kSunday : kDOWNone);
+              TransitSchedule sched(days, dow_mask, end_day);
+              auto sched_itr = schedules.find(sched);
+              if (sched_itr == schedules.end()) {
+                // Not in the map - add a new transit schedule to the tile
+                transit_tilebuilder.AddTransitSchedule(sched);
+
+                // Add to the map and increment the index
+                schedules[sched] = schedule_index;
+                dep.schedule_index = schedule_index;
+                schedule_index++;
+              } else {
+                dep.schedule_index = sched_itr->second;
+              }
             }
 
             dep.dep_time = origin_seconds;

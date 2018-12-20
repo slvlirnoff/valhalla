@@ -1,3 +1,4 @@
+
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -89,7 +90,7 @@ struct pt_curler_t {
       long http_code = 0;
       std::string log_extra = "Couldn't fetch url ";
       // can we fetch this url
-      LOG_DEBUG(url);
+      LOG_INFO(url);
       if (curl_easy_perform(connection.get()) == CURLE_OK) {
         curl_easy_getinfo(connection.get(), CURLINFO_RESPONSE_CODE, &http_code);
         log_extra = std::to_string(http_code) + "'d ";
@@ -172,6 +173,28 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   auto request = url("/api/v1/feeds.geojson?per_page=false", pt);
   request += transit_bounding_box;
   request += active_feed_version_import_level;
+
+  // For test purpose, transit_bounding_box wasn't working properly, fixed it.
+  auto bbox = pt.get_optional<std::string>("mjolnir.transit_bounding_box") ? pt.get<std::string>("mjolnir.transit_bounding_box") : "";
+  auto fixed_min_x = -180.0;
+  auto fixed_min_y = -90.0;
+  auto fixed_max_x = 180.0;
+  auto fixed_max_y = 90.0;
+
+  if(bbox != "") {
+  std::vector<std::string> parts;
+  LOG_WARN("Parsing in parts: " + transit_bounding_box);
+  boost::algorithm::split(parts, bbox, boost::is_any_of(","));
+
+  LOG_WARN("Parsing in parts: " + parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]);
+
+  fixed_min_x = std::stof(parts[0]);
+  fixed_min_y = std::stof(parts[1]);
+  fixed_max_x = std::stof(parts[2]);
+  fixed_max_y = std::stof(parts[3]);
+
+
+  }
   auto feeds = curler(request, "features");
   for (const auto& feature : feeds.get_child("features")) {
 
@@ -184,6 +207,8 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         LOG_WARN("Skipping non-polygonal feature: " + feature.second.get_value<std::string>());
         continue;
       }
+
+      // 5.956649780273437,46.222127524002886,7.24273681640625,46.4851559004343
       // grab the tile row and column ranges for the max box around the polygon
       float min_x = 180, max_x = -180, min_y = 90, max_y = -90;
       for (const auto& coord : feature.second.get_child("geometry.coordinates").front().second) {
@@ -201,6 +226,21 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (y > max_y) {
           max_y = y;
         }
+      	if (min_x < fixed_min_x) {
+      	  min_x = fixed_min_x;
+      	}
+      	if (max_x > fixed_max_x) {
+      	  max_x = fixed_max_x;
+      	}
+        if (min_y < fixed_min_y) {
+          min_y = fixed_min_y;
+        }
+        if (max_y > fixed_max_y) {
+          max_y = fixed_max_y;
+        }
+        LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " + std::to_string(min_y) + " " + std::to_string(max_y) );
+        LOG_INFO("fixed boundary: " + std::to_string(fixed_min_x) + " " + std::to_string(fixed_max_x) + " " + std::to_string(fixed_min_y) + " " + std::to_string(fixed_max_y) );
+
       }
 
       // expand the top and bottom edges of the box to account for geodesics
@@ -428,17 +468,19 @@ void get_routes(Transit& tile,
     } else if (vehicle_type == "metro") {
       type = Transit_VehicleType::Transit_VehicleType_kMetro;
     } else if (vehicle_type == "rail" || vehicle_type == "suburban_railway" ||
-               vehicle_type == "railway_service") {
+               vehicle_type == "railway_service" || vehicle_type == "sleeper_rail_service" ||
+	     vehicle_type == "long_distance_trains" || vehicle_type == "regional_rail_service" ||
+	     vehicle_type == "inter_regional_rail_service" ||  vehicle_type == "null" || vehicle_type == "high_speed_rail_service") {
       type = Transit_VehicleType::Transit_VehicleType_kRail;
-    } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" ||
+    } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" || vehicle_type == "taxi_service" || vehicle_type == "communal_taxi_service" ||  // sbb oftern marks replacement bus as taxi_service
                vehicle_type == "express_bus_service" || vehicle_type == "local_bus_service" ||
                vehicle_type == "bus_service" || vehicle_type == "shuttle_bus" ||
                vehicle_type == "demand_and_response_bus_service" ||
                vehicle_type == "regional_bus_service" || vehicle_type == "coach_service") {
       type = Transit_VehicleType::Transit_VehicleType_kBus;
-    } else if (vehicle_type == "ferry") {
+    } else if (vehicle_type == "ferry" || vehicle_type == "water_transport_service") {
       type = Transit_VehicleType::Transit_VehicleType_kFerry;
-    } else if (vehicle_type == "cablecar") {
+    } else if (vehicle_type == "cablecar" || vehicle_type == "miscellaneous_service") {
       type = Transit_VehicleType::Transit_VehicleType_kCableCar;
     } else if (vehicle_type == "gondola") {
       type = Transit_VehicleType::Transit_VehicleType_kGondola;
@@ -519,10 +561,15 @@ struct unique_transit_t {
 
 bool get_stop_pairs(Transit& tile,
                     unique_transit_t& uniques,
-                    const std::unordered_map<std::string, size_t>& shapes,
+                    std::unordered_map<std::string, size_t>& shapes,
                     const ptree& response,
                     const std::unordered_map<std::string, uint64_t>& stops,
-                    const std::unordered_map<std::string, size_t>& routes) {
+                    std::unordered_map<std::string, size_t>& routes,
+                    std::unordered_map<std::string, std::string>& websites,
+                    std::unordered_map<std::string, std::string>& short_names,
+                    const ptree& pt,
+                    pt_curler_t curler
+                ) {
   bool dangles = false;
   for (const auto& pair_pt : response.get_child("schedule_stop_pairs")) {
     auto* pair = tile.add_stop_pairs();
@@ -569,14 +616,56 @@ bool get_stop_pairs(Transit& tile,
     auto route_id = pair_pt.second.get<std::string>("route_onestop_id");
     auto route = routes.find(route_id);
     if (route == routes.cend()) {
-      uniques.lock.lock();
-      if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
-        LOG_ERROR("No route " + route_id);
-        uniques.missing_routes.emplace(route_id);
+      if(route_id == "null") {
+        LOG_ERROR("route_id is null, removed");
+        tile.mutable_stop_pairs()->RemoveLast();
+        continue; 
       }
-      uniques.lock.unlock();
-      tile.mutable_stop_pairs()->RemoveLast();
-      continue;
+      boost::optional<std::string> request =
+        url((boost::format(
+                 "/api/v1/"
+                 "routes?total=false&include_geometry=false&onestop_id=%1%") % url_encode(route_id))
+                .str(),
+            pt);
+
+      //uniques.lock.lock();
+      //if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
+      LOG_INFO("No route - calling it live " + route_id);
+      
+      auto new_response = curler(*request, "routes");
+      int old_size = tile.routes_size();
+      get_routes(tile, routes, websites, short_names, new_response);
+      LOG_INFO("route number went from " + std::to_string(old_size) + " to " + std::to_string(tile.routes_size()));
+
+      route = routes.find(route_id);
+
+      if (route == routes.cend()) {
+        LOG_ERROR("Really no route ... fail miserably");
+        tile.mutable_stop_pairs()->RemoveLast();
+        continue;
+      }
+
+      // Get shapes of this route
+      request = url((boost::format(
+                   "/api/v1/route_stop_patterns?total=false&per_page=100&traversed_by=%2%") %
+               pt.get<std::string>("per_page") % url_encode(route->first))
+                  .str(),
+              pt);
+      do {
+        // grab some stuff
+        new_response = curler(*request, "route_stop_patterns");
+        // copy shapes in.
+        get_stop_patterns(tile, shapes, new_response);
+        // please sir may i have some more?
+        request = new_response.get_optional<std::string>("meta.next");
+      } while (request);
+
+      LOG_INFO("Route index will be " + std::to_string(route->second));
+      //  uniques.missing_routes.emplace(route_id);
+      //}
+      //uniques.lock.unlock();
+      //tile.mutable_stop_pairs()->RemoveLast();
+      //continue;
     }
     pair->set_route_index(route->second);
 
@@ -896,14 +985,15 @@ void fetch_tiles(const ptree& pt,
         // grab some stuff
         response = curler(*request, "schedule_stop_pairs");
         // copy pairs in, noting if any dont have stops
-        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes) || dangles;
+        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites, short_names, pt, curler) || dangles;
         // if stop pairs is large save to a path with an incremented extension
         if (tile.stop_pairs_size() >= 500000) {
+          // Start by writting .pbf.0, .pbf.1, .pbf.2
+          transit_tile = prefix + '.' + std::to_string(ext++);
           LOG_INFO("Writing " + transit_tile.string());
           write_pbf(tile, transit_tile.string());
-          // reset everything
-          tile.Clear();
-          transit_tile = prefix + '.' + std::to_string(ext++);
+          // reset stop pairs, keep on accumulating the others
+          tile.clear_stop_pairs();
         }
         // please sir may i have some more?
         request = response.get_optional<std::string>("meta.next");
@@ -915,8 +1005,9 @@ void fetch_tiles(const ptree& pt,
       dangling.emplace_back(current);
     }
 
-    // save the last tile
+    // save the last tile (.pbf) which has the most routes saved in it
     if (tile.stop_pairs_size()) {
+      transit_tile = prefix;
       write_pbf(tile, transit_tile.string());
     }
   }
