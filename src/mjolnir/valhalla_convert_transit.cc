@@ -258,8 +258,8 @@ ProcessStopPairs(GraphTileBuilder& transit_tilebuilder,
               origin_seconds -= kSecondsPerDay;
 
               // Here we need to fix the dow mask and dates
-              days = shift_service_day(days, end_day, tile_date);
-              dow_mask = (dow_mask << 1) | (dow_mask & kSaturday ? kSunday : kDOWNone);
+              days = shift_service_day(days, end_date, tile_date);
+              dow_mask = ((dow_mask << 1) & kAllDaysOfWeek) | (dow_mask & kSaturday ? kSunday : kDOWNone);
               TransitSchedule sched(days, dow_mask, end_day);
               auto sched_itr = schedules.find(sched);
               if (sched_itr == schedules.end()) {
