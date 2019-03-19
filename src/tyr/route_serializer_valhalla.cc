@@ -476,6 +476,11 @@ json::ArrayPtr legs(const std::list<valhalla::odin::TripDirections>& directions_
                                               " [ANALYTICS] ");
             }
 
+            // platform_onestop_id - using the onestop_id
+            if (transit_stop.has_onestop_id()) {
+              json_transit_stop->emplace("platform_onestop_id", transit_stop.onestop_id());
+            }
+
             // name - using the station name
             if (transit_stop.has_station_name()) {
               json_transit_stop->emplace("name", transit_stop.station_name());
