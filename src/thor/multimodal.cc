@@ -192,7 +192,12 @@ MultiModalPathAlgorithm::GetBestPath(odin::Location& origin,
     // Copy the EdgeLabel for use in costing. Check if this is a destination
     // edge and potentially complete the path.
     MMEdgeLabel pred = edgelabels_[predindex];
+    bool has_transit = pred.has_transit();
     if (destinations_.find(pred.edgeid()) != destinations_.end()) {
+      if(!has_transit) {
+        LOG_INFO("Prevent form_path because no fucking transit yet");
+        continue;
+      }
       // Check if a trivial path. Skip if no predecessor and not
       // trivial (cannot reach destination along this one edge).
       if (pred.predecessor() == kInvalidLabel) {
@@ -217,6 +222,7 @@ MultiModalPathAlgorithm::GetBestPath(odin::Location& origin,
       mindist = dist2dest;
       nc = 0;
     } else if (nc++ > 500000) {
+      LOG_INFO("Not converging ...");
       return {};
     }
 
@@ -406,11 +412,26 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           if (pred.transit_operator() > 0 && pred.transit_operator() != operator_id) {
             // TODO - create a configurable operator change penalty
             newcost.cost += 300;
-          } else {
-            newcost.cost += transfer_cost.cost;
           }
+
+          newcost.cost += transfer_cost.cost;
         }
 
+        if(!pred.has_transit()) {
+          // If first transit line remove waiting time into cost
+          // this should favor transit over direct pedestrian
+          // TODO: weight it down instead to prefer transit options that
+          // arrives earlier even if higher cost because slower
+          LOG_INFO("remove transit first waiting time from cost " + std::to_string(departure->departure_time() - localtime));
+          LOG_INFO("- locatime " + std::to_string(localtime));
+          LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
+          LOG_INFO("=> max 10 mn => " + std::to_string( std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime) ));
+
+
+          // Up to one hour ...
+          newcost.cost -= std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
+        }
+      
         // Change mode and costing to transit. Add edge cost.
         mode_ = TravelMode::kPublicTransit;
         newcost += tc->EdgeCost(directededge, departure, localtime);
