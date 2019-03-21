@@ -353,6 +353,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
 
     // Reset cost and walking distance
     Cost newcost = pred.cost();
+    float wait_seconds = pred.wait_seconds();
     walking_distance_ = pred.path_distance();
 
     // If this is a transit edge - get the next departure. Do not check
@@ -433,6 +434,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           // Up to one hour ...
           newcost.cost -=
               std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
+          wait_seconds = departure->departure_time() - localtime;
         }
 
         // Change mode and costing to transit. Add edge cost.
@@ -518,7 +520,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
       if (newcost.cost < lab.cost().cost) {
         float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
         adjacencylist_->decrease(es->index(), newsortcost);
-        lab.Update(pred_idx, newcost, newsortcost, walking_distance_, tripid, blockid);
+        lab.Update(pred_idx, newcost, wait_seconds, newsortcost, walking_distance_, tripid, blockid);
       }
       continue;
     }
@@ -543,7 +545,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
     // Add edge label, add to the adjacency list and set edge status
     uint32_t idx = edgelabels_.size();
     *es = {EdgeSet::kTemporary, idx};
-    edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, sortcost, dist, mode_,
+    edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_seconds, sortcost, dist, mode_,
                              walking_distance_, tripid, prior_stop, blockid, operator_id,
                              has_transit);
     adjacencylist_->add(idx);
@@ -644,7 +646,7 @@ void MultiModalPathAlgorithm::SetOrigin(GraphReader& graphreader,
     // Set the predecessor edge index to invalid to indicate the origin
     // of the path.
     uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.percent_along()));
-    MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, sortcost, dist, mode_, d, 0,
+    MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, sortcost, dist, mode_, d, 0,
                            GraphId(), 0, 0, false);
     // Set the origin flag
     edge_label.set_origin();

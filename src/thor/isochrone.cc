@@ -209,7 +209,8 @@ void Isochrone::ExpandForward(GraphReader& graphreader,
   if (!from_transition) {
     uint32_t idx = pred.predecessor();
     float secs0 = (idx == kInvalidLabel) ? 0 : edgelabels_[idx].cost().secs;
-    UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0);
+    float secs1 = pred.cost().secs;
+    UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0, secs1);
   }
   if (!costing_->Allowed(nodeinfo)) {
     return;
@@ -392,7 +393,8 @@ void Isochrone::ExpandReverse(GraphReader& graphreader,
   if (!from_transition) {
     uint32_t idx = pred.predecessor();
     float secs0 = (idx == kInvalidLabel) ? 0 : bdedgelabels_[idx].cost().secs;
-    UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0);
+    float secs1 = pred.cost().secs;
+    UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0, secs1);
   }
   if (!costing_->Allowed(nodeinfo)) {
     return;
@@ -591,10 +593,20 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
   // Update the isotile
   uint32_t idx = pred.predecessor();
   float secs0 = (idx == kInvalidLabel) ? 0 : mmedgelabels_[idx].cost().secs;
-  UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0);
+  float secs1 = pred.cost().secs;
+  float wait_seconds = pred.wait_seconds();
+  float travel_secs = pred.cost().secs - wait_seconds;
+
+  UpdateIsoTile(
+    pred,
+    graphreader,
+    tile->get_node_ll(node),
+    secs0 - wait_seconds,
+    secs1 - wait_seconds
+  );
 
   // Return true if the time interval has been met
-  if (pred.cost().secs > max_seconds_) {
+  if (travel_secs > max_seconds_) {
     LOG_DEBUG("Exceed time interval: edgelabel count = " + std::to_string(mmedgelabels_.size()));
     return true;
   }
@@ -678,8 +690,10 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
       continue;
     }
 
-    // Reset cost and walking distance
+    // Reset cost, wait and walking distance
     Cost newcost = pred.cost();
+    float wait_seconds = pred.wait_seconds();
+
     uint32_t walking_distance = pred.path_distance();
 
     // If this is a transit edge - get the next departure. Do not check if allowed by
@@ -738,10 +752,29 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
           if (pred.transit_operator() > 0 && pred.transit_operator() != operator_id) {
             // TODO - create a configurable operator change penalty
             newcost.cost += 300;
-          } else {
-            newcost.cost += transfer_cost.cost;
           }
+          newcost.cost += transfer_cost.cost;
         }
+
+        if (!pred.has_transit()) {
+          // If first transit line remove waiting time into cost
+          // this should favor transit over direct pedestrian
+          // TODO: weight it down instead to prefer transit options that
+          // arrives earlier even if higher cost because slower
+          LOG_INFO("remove transit first waiting time from cost " +
+                   std::to_string(departure->departure_time() - localtime));
+          LOG_INFO("- locatime " + std::to_string(localtime));
+          LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
+          LOG_INFO("=> max 1h => " +
+                   std::to_string(std::min(static_cast<uint32_t>(3600),
+                                           departure->departure_time() - localtime)));
+
+          // Up to one hour ...
+          newcost.cost -=
+              std::min(static_cast<uint32_t>(3600), departure->departure_time() - localtime);
+          wait_seconds = departure->departure_time() - localtime;
+        }
+
 
         // Change mode and costing to transit. Add edge cost.
         mode_ = TravelMode::kPublicTransit;
@@ -824,7 +857,7 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
       if (newcost.cost < lab.cost().cost) {
         float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
         adjacencylist_->decrease(es->index(), newsortcost);
-        lab.Update(pred_idx, newcost, newsortcost, walking_distance, tripid, blockid);
+        lab.Update(pred_idx, newcost, wait_seconds, newsortcost, walking_distance, tripid, blockid);
       }
       continue;
     }
@@ -832,7 +865,7 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
     // Add edge label, add to the adjacency list and set edge status
     uint32_t idx = mmedgelabels_.size();
     *es = {EdgeSet::kTemporary, idx};
-    mmedgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, newcost.cost, 0.0f, mode_,
+    mmedgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_seconds, newcost.cost, 0.0f, mode_,
                                walking_distance, tripid, prior_stop, blockid, operator_id,
                                has_transit);
     adjacencylist_->add(idx);
@@ -936,7 +969,8 @@ std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeMultiModal(
 void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
                               GraphReader& graphreader,
                               const PointLL& ll,
-                              float secs0) {
+                              float secs0,
+                              float secs1) {
   // Skip if the opposing edge has already been settled.
   const GraphTile* t2;
   GraphId opp = graphreader.GetOpposingEdgeId(pred.edgeid(), t2);
@@ -954,10 +988,6 @@ void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
   if (edge->IsTransitLine() || edge->use() == Use::kFerry) {
     return;
   }
-
-  // Get the time at the end node of the predecessor
-  // TODO - do we need partial shape from origin location to end of edge?
-  float secs1 = pred.cost().secs;
 
   // For short edges just mark the segment between the 2 nodes of the edge. This
   // avoid getting the shape for short edges.
@@ -1151,7 +1181,7 @@ void Isochrone::SetOriginLocationsMM(
       uint32_t idx = mmedgelabels_.size();
       uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.percent_along()));
       edgestatus_.Set(edgeid, EdgeSet::kTemporary, idx, tile);
-      MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, cost.cost, 0.0f, mode_, d, 0,
+      MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, cost.cost, 0.0f, mode_, d, 0,
                              GraphId(), 0, 0, false);
 
       // Set the origin flag

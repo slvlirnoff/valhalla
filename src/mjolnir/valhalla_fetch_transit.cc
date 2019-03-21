@@ -223,8 +223,13 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (y > max_y) {
           max_y = y;
         }
+        LOG_INFO("Old BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " +
+                 std::to_string(min_y) + " " + std::to_string(max_y));
         if (min_x < fixed_min_x) {
           min_x = fixed_min_x;
+        }
+        if(max_x < min_x) {
+          max_x = min_x;
         }
         if (max_x > fixed_max_x) {
           max_x = fixed_max_x;
@@ -232,14 +237,16 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (min_y < fixed_min_y) {
           min_y = fixed_min_y;
         }
+        if(max_y < min_y) {
+          max_y = min_y;
+        }
         if (max_y > fixed_max_y) {
           max_y = fixed_max_y;
         }
         LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " +
                  std::to_string(min_y) + " " + std::to_string(max_y));
-        LOG_INFO("fixed boundary: " + std::to_string(fixed_min_x) + " " +
-                 std::to_string(fixed_max_x) + " " + std::to_string(fixed_min_y) + " " +
-                 std::to_string(fixed_max_y));
+
+
       }
 
       // expand the top and bottom edges of the box to account for geodesics

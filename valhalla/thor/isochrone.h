@@ -235,11 +235,13 @@ protected:
    * @param  graphreader  Graph reader
    * @param  ll           Lat,lon at the end of the edge.
    * @param  secs0        Seconds at start of the edge.
+   * @param  secs1        Seconds at end of the previous edge.
    */
   void UpdateIsoTile(const sif::EdgeLabel& pred,
                      baldr::GraphReader& graphreader,
                      const midgard::PointLL& ll,
-                     const float secs0);
+                     const float secs0,
+                     const float secs1);
 
   /**
    * Add edge(s) at each origin location to the adjacency list.
