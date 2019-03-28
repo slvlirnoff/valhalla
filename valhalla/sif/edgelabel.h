@@ -550,7 +550,8 @@ public:
               const baldr::GraphId& edgeid,
               const baldr::DirectedEdge* edge,
               const sif::Cost& cost,
-              const float wait_seconds, // Waiting time before first transit leg
+              const float wait_at_start, // Waiting time before first transit leg
+              const float wait_at_stop, // Waiting time before this edge label
               const float sortcost,
               const float dist,
               const sif::TravelMode mode,
@@ -562,7 +563,8 @@ public:
               const bool has_transit)
       : EdgeLabel(predecessor, edgeid, edge, cost, sortcost, dist, mode, path_distance),
         prior_stopid_(prior_stopid), tripid_(tripid), blockid_(blockid),
-        transit_operator_(transit_operator), has_transit_(has_transit), wait_seconds_(wait_seconds) {
+        transit_operator_(transit_operator), has_transit_(has_transit),
+        wait_at_start_(wait_at_start), wait_at_stop_(wait_at_stop) {
   }
 
   /**
@@ -579,14 +581,16 @@ public:
    */
   void Update(const uint32_t predecessor,
               const sif::Cost& cost,
-              const float wait_seconds, // Waiting time before first transit leg
+              const float wait_at_start, // Waiting time before first transit leg
+              const float wait_at_stop, // Waiting time before first transit leg
               const float sortcost,
               const uint32_t path_distance,
               const uint32_t tripid,
               const uint32_t blockid) {
     predecessor_ = predecessor;
     cost_ = cost;
-    wait_seconds_ = wait_seconds;
+    wait_at_start_ = wait_at_start;
+    wait_at_stop_ = wait_at_stop;
     sortcost_ = sortcost;
     path_distance_ = path_distance;
     tripid_ = tripid;
@@ -637,8 +641,16 @@ public:
    * If has any transit been taken up to this point the time waiting for it at the first station.
    * @return  Return the time in seconds waiting for the first transit segment
    */
-  float wait_seconds() const {
-    return wait_seconds_;
+  float wait_at_start() const {
+    return wait_at_start_;
+  }
+
+  /**
+   * If has any transit been taken up to this point the time waiting for it at the first station.
+   * @return  Return the time in seconds waiting for the first transit segment
+   */
+  float wait_at_stop() const {
+    return wait_at_stop_;
   }
 
 protected:
@@ -655,7 +667,8 @@ protected:
   uint32_t transit_operator_ : 10;
   uint32_t has_transit_ : 1;
   // The waiting time
-  float wait_seconds_;
+  float wait_at_start_;
+  float wait_at_stop_;
 };
 
 } // namespace sif

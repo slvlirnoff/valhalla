@@ -202,10 +202,10 @@ MultiModalPathAlgorithm::GetBestPath(odin::Location& origin,
       // trivial (cannot reach destination along this one edge).
       if (pred.predecessor() == kInvalidLabel) {
         if (IsTrivial(pred.edgeid(), origin, destination)) {
-          return FormPath(predindex);
+          return FormPath(graphreader, predindex);
         }
       } else {
-        return FormPath(predindex);
+        return FormPath(graphreader, predindex);
       }
     }
 
@@ -353,7 +353,8 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
 
     // Reset cost and walking distance
     Cost newcost = pred.cost();
-    float wait_seconds = pred.wait_seconds();
+    float wait_at_start = pred.wait_at_start();
+    float wait_at_stop = 0;
     walking_distance_ = pred.path_distance();
 
     // If this is a transit edge - get the next departure. Do not check
@@ -428,13 +429,16 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           LOG_INFO("- locatime " + std::to_string(localtime));
           LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
           LOG_INFO("=> max 10 mn => " +
-                   std::to_string(std::min(static_cast<uint32_t>(600),
+                   std::to_string(std::min(static_cast<uint32_t>(3600),
                                            departure->departure_time() - localtime)));
 
           // Up to one hour ...
           newcost.cost -=
-              std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
-          wait_seconds = departure->departure_time() - localtime;
+              std::min(static_cast<uint32_t>(3600), departure->departure_time() - localtime);
+          wait_at_start = departure->departure_time() - localtime;
+          wait_at_stop = wait_at_start;
+        } else {
+          wait_at_stop = departure->departure_time() - localtime;
         }
 
         // Change mode and costing to transit. Add edge cost.
@@ -520,7 +524,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
       if (newcost.cost < lab.cost().cost) {
         float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
         adjacencylist_->decrease(es->index(), newsortcost);
-        lab.Update(pred_idx, newcost, wait_seconds, newsortcost, walking_distance_, tripid, blockid);
+        lab.Update(pred_idx, newcost, wait_at_start, wait_at_stop, newsortcost, walking_distance_, tripid, blockid);
       }
       continue;
     }
@@ -545,7 +549,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
     // Add edge label, add to the adjacency list and set edge status
     uint32_t idx = edgelabels_.size();
     *es = {EdgeSet::kTemporary, idx};
-    edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_seconds, sortcost, dist, mode_,
+    edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_at_start, wait_at_stop, sortcost, dist, mode_,
                              walking_distance_, tripid, prior_stop, blockid, operator_id,
                              has_transit);
     adjacencylist_->add(idx);
@@ -646,7 +650,7 @@ void MultiModalPathAlgorithm::SetOrigin(GraphReader& graphreader,
     // Set the predecessor edge index to invalid to indicate the origin
     // of the path.
     uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.percent_along()));
-    MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, sortcost, dist, mode_, d, 0,
+    MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, 0.0f, sortcost, dist, mode_, d, 0,
                            GraphId(), 0, 0, false);
     // Set the origin flag
     edge_label.set_origin();
@@ -841,16 +845,157 @@ bool MultiModalPathAlgorithm::CanReachDestination(const odin::Location& destinat
 }
 
 // Form the path from the adjacency list.
-std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(const uint32_t dest) {
+std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader, const uint32_t dest) {
   // Metrics to track
   LOG_DEBUG("path_cost::" + std::to_string(edgelabels_[dest].cost().cost));
   LOG_DEBUG("path_iterations::" + std::to_string(edgelabels_.size()));
 
-  // Work backwards from the destination
+  MMEdgeLabel* previous_pt = nullptr;
+  uint32_t previous_pt_idx;
+  float delta = 0;
+  int32_t new_tripid  = 0;
+
+  if(true) {
+    // Work backwards from the destination to optimise transit departures
+    for (auto edgelabel_index = dest; edgelabel_index != kInvalidLabel;
+        edgelabel_index = edgelabels_[edgelabel_index].predecessor()) {
+      // Pointer on current edge
+      MMEdgeLabel* current = &edgelabels_[edgelabel_index];
+      if(current->mode() == TravelMode::kPublicTransit) {
+        // Check if it can be optimised (wrt next transit stop)
+        if(previous_pt && current->tripid() != previous_pt->tripid()) {
+          // Available time for later departure
+          auto available_wait = previous_pt->wait_at_stop();
+          // predecessing edge
+          auto predecessor = &edgelabels_[current->predecessor()];
+          delta = 0.0;
+          // Get tile of the departure node of the transit edge
+          const GraphTile* tile = graphreader.GetGraphTile(predecessor->endnode());
+          // Get information about the transit edge from the tile tile
+          const DirectedEdge* edge = tile->directededge(current->edgeid());
+          auto transit_departure_time = start_time_ + predecessor->cost().secs + current->wait_at_stop();
+
+          // Find next potential departure of that line
+          const TransitDeparture* departure = nullptr;
+          auto next_departure_time = transit_departure_time + 1;
+
+          do {
+            const TransitDeparture* next_departure = tile->GetNextDeparture(edge->lineid(), next_departure_time, day_, dow_, date_before_tile_,
+                                  false, false);
+
+            // Can't be optimised
+            if(!next_departure) {
+              LOG_INFO("no departure to optimise with");
+              break;
+            }
+
+
+            // For for potential further departure that would still fit
+            LOG_INFO("Next departure " + std::to_string(next_departure->departure_time()));
+            if(next_departure->departure_time() - transit_departure_time <= available_wait + 1) { // +1 rounding error
+              // Save best found and check for the next one
+              departure = next_departure;
+              next_departure_time = next_departure->departure_time() + 1;
+              delta = departure->departure_time() - transit_departure_time;
+              new_tripid = departure->tripid();
+            } else {
+              break;
+            }
+            LOG_INFO("next departure later delta " + std::to_string(delta) + " vs " + std::to_string(available_wait));
+
+
+          } while(true);
+
+          // relevant departure
+          if(departure && delta <= (available_wait + 1)) { // +1 rounding error
+            // Update previous public transit leg wait at stop information
+            previous_pt->Update(
+              previous_pt->predecessor(),
+              previous_pt->cost(),
+              previous_pt->wait_at_start(),
+              previous_pt->wait_at_stop() - delta,
+              previous_pt->sortcost(),
+              previous_pt->path_distance(),
+              previous_pt->tripid(),
+              previous_pt->blockid()
+            );
+
+            // Go through all edge between current leg and previous transport object and update elasped time to reflect the change
+            for (auto idx = edgelabels_[previous_pt_idx].predecessor(); idx != current->predecessor();
+              idx = edgelabels_[idx].predecessor()) {
+              auto label = &edgelabels_[idx];
+              // Add departure change to the cost, TODO: Improve, for now assume duration stay the same
+              auto newcost = label->cost();
+              newcost.cost += delta;
+              newcost.secs += delta;
+              // Update the label with new cost, trip id and waiting time
+              label->Update(
+                label->predecessor(),
+                newcost,
+                label->wait_at_start(),
+                idx == edgelabel_index ? label->wait_at_stop() + delta : label->wait_at_stop() ,
+                label->sortcost(),
+                label->path_distance(),
+                label->tripid() ? new_tripid : 0,
+                label->blockid()
+              );
+            }
+          }
+          
+        }
+        // Update pointer to previous PT leg
+        previous_pt = current;
+        previous_pt_idx = edgelabel_index;
+      } else if (delta > 0.0f) {
+        auto newcost = current->cost();
+        newcost.cost += delta;
+        newcost.secs += delta;
+        current->Update(
+            current->predecessor(),
+            newcost,
+            current->wait_at_start(),
+            current->wait_at_stop(),
+            current->sortcost(),
+            current->path_distance(),
+            current->tripid() ? new_tripid : 0,
+            current->blockid()
+        );
+      }
+
+    }
+    if(previous_pt) {
+      delta = previous_pt->wait_at_start();
+      LOG_INFO("update last walkings with " + std::to_string(delta));
+      // Update last walking before public transport
+      for (auto idx = edgelabels_[previous_pt_idx].predecessor(); idx != kInvalidLabel;
+        idx = edgelabels_[idx].predecessor()) {
+        auto label = &edgelabels_[idx];
+        LOG_INFO("trip id " + std::to_string(label->tripid()));
+        auto newcost = label->cost();
+        newcost.cost += delta;
+        newcost.secs += delta;
+        label->Update(
+          label->predecessor(),
+          newcost,
+          label->wait_at_start(),
+          label->wait_at_stop(),
+          label->sortcost(),
+          label->path_distance(),
+          label->tripid(),
+          label->blockid()
+        );
+        LOG_INFO("increase " + std::to_string(idx) + " by " + std::to_string(delta) + " to " + std::to_string(start_time_ + newcost.secs));
+      }
+
+    }
+  }
+  
   std::vector<PathInfo> path;
   for (auto edgelabel_index = dest; edgelabel_index != kInvalidLabel;
        edgelabel_index = edgelabels_[edgelabel_index].predecessor()) {
-    const MMEdgeLabel& edgelabel = edgelabels_[edgelabel_index];
+
+    MMEdgeLabel& edgelabel = edgelabels_[edgelabel_index];
+    LOG_INFO("emplace back idx " + std::to_string(edgelabel_index) + " step time " + std::to_string(start_time_ + edgelabel.cost().secs));
     path.emplace_back(edgelabel.mode(), edgelabel.cost().secs, edgelabel.edgeid(),
                       edgelabel.tripid());
 
@@ -858,6 +1003,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(const uint32_t dest) {
     if (edgelabel.use() == Use::kFerry) {
       has_ferry_ = true;
     }
+
   }
 
   // Reverse the list and return
