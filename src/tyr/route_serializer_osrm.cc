@@ -7,6 +7,8 @@
 #include "baldr/json.h"
 #include "midgard/encoded.h"
 #include "midgard/pointll.h"
+#include "midgard/polyline2.h"
+
 #include "odin/enhancedtrippath.h"
 #include "odin/util.h"
 #include "tyr/serializers.h"
@@ -25,6 +27,107 @@ using namespace std;
 namespace {
 const std::string kSignElementDelimiter = ", ";
 const std::string kDestinationsDelimiter = ": ";
+
+constexpr std::size_t MAX_USED_SEGMENTS = 2;
+struct NamedSegment {
+  std::string name;
+  uint32_t index;
+  float distance;
+};
+
+constexpr const double COORDINATE_PRECISION = 1e6;
+struct Coordinate {
+  std::int32_t lng;
+  std::int32_t lat;
+
+  Coordinate(const std::int32_t lng_, const std::int32_t lat_) : lng(lng_), lat(lat_) {
+  }
+};
+
+inline std::int32_t toFixed(const float floating) {
+  const auto d = static_cast<double>(floating);
+  const auto fixed = static_cast<std::int32_t>(std::round(d * COORDINATE_PRECISION));
+  return fixed;
+}
+
+inline double toFloating(const std::int32_t fixed) {
+  const auto i = static_cast<std::int32_t>(fixed);
+  const auto floating = static_cast<double>(i) / COORDINATE_PRECISION;
+  return floating;
+}
+
+const constexpr double TILE_SIZE = 256.0;
+static constexpr unsigned MAX_ZOOM = 18;
+static constexpr unsigned MIN_ZOOM = 1;
+// this is an upper bound to current display sizes
+static constexpr double VIEWPORT_WIDTH = 8 * TILE_SIZE;
+static constexpr double VIEWPORT_HEIGHT = 5 * TILE_SIZE;
+static double INV_LOG_2 = 1. / std::log(2);
+const constexpr double DEGREE_TO_RAD = 0.017453292519943295769236907684886;
+const constexpr double RAD_TO_DEGREE = 1. / DEGREE_TO_RAD;
+const constexpr double EPSG3857_MAX_LATITUDE = 85.051128779806592378; // 90(4*atan(exp(pi))/pi-1)
+
+const constexpr float DOUGLAS_PEUCKER_THRESHOLDS[19] = {
+    703125.0, // z0
+    351562.5, // z1
+    175781.2, // z2
+    87890.6,  // z3
+    43945.3,  // z4
+    21972.6,  // z5
+    10986.3,  // z6
+    5493.1,   // z7
+    2746.5,   // z8
+    1373.2,   // z9
+    686.6,    // z10
+    343.3,    // z11
+    171.6,    // z12
+    85.8,     // z13
+    42.9,     // z14
+    21.4,     // z15
+    10.7,     // z16
+    5.3,      // z17
+    2.6,      // z18
+};
+
+inline double clamp(const double lat) {
+  return std::max(std::min(lat, double(EPSG3857_MAX_LATITUDE)), double(-EPSG3857_MAX_LATITUDE));
+}
+
+inline double latToY(const double latitude) {
+  // apparently this is the (faster) version of the canonical log(tan()) version
+  const auto clamped_latitude = clamp(latitude);
+  const double f = std::sin(DEGREE_TO_RAD * static_cast<double>(clamped_latitude));
+  return RAD_TO_DEGREE * 0.5 * std::log((1 + f) / (1 - f));
+}
+
+inline double lngToPixel(double lon, unsigned zoom) {
+  const double shift = (1u << zoom) * TILE_SIZE;
+  const double b = shift / 2.0;
+  const double x = b * (1 + static_cast<double>(lon) / 180.0);
+  return x;
+}
+
+inline double latToPixel(double lat, unsigned zoom) {
+  const double shift = (1u << zoom) * TILE_SIZE;
+  const double b = shift / 2.0;
+  const double y = b * (1. - latToY(lat) / 180.);
+  return y;
+}
+
+inline unsigned getFittedZoom(Coordinate south_west, Coordinate north_east) {
+  const auto min_x = lngToPixel(toFloating(south_west.lng), MAX_ZOOM);
+  const auto max_y = latToPixel(toFloating(south_west.lat), MAX_ZOOM);
+  const auto max_x = lngToPixel(toFloating(north_east.lng), MAX_ZOOM);
+  const auto min_y = latToPixel(toFloating(north_east.lat), MAX_ZOOM);
+  const double width_ratio = (max_x - min_x) / VIEWPORT_WIDTH;
+  const double height_ratio = (max_y - min_y) / VIEWPORT_HEIGHT;
+  const auto zoom = MAX_ZOOM - std::max(std::log(width_ratio), std::log(height_ratio)) * INV_LOG_2;
+
+  if (std::isfinite(zoom))
+    return std::max<unsigned>(MIN_ZOOM, zoom);
+  else
+    return MIN_ZOOM;
+}
 
 namespace osrm_serializers {
 /*
@@ -168,11 +271,9 @@ void route_summary(json::MapPtr& route,
   route->emplace("weight_name", std::string("Valhalla default"));
 }
 
-// Generate full shape of the route. TODO - different encodings, generalization
+// Generate full shape of the route.
 std::string full_shape(const std::list<valhalla::odin::TripDirections>& legs,
                        const valhalla::odin::DirectionsOptions& directions_options) {
-  // TODO - support generalization
-
   // If just one leg and it we want polyline6 then we just return the encoded leg shape
   if (legs.size() == 1 && directions_options.shape_format() == odin::polyline6) {
     return legs.front().shape();
@@ -192,6 +293,41 @@ std::string full_shape(const std::list<valhalla::odin::TripDirections>& legs,
   }
   int precision = directions_options.shape_format() == odin::polyline6 ? 1e6 : 1e5;
   return midgard::encode(decoded, precision);
+}
+
+// Generate simplified shape of the route.
+std::string simplified_shape(const std::list<valhalla::odin::TripDirections>& legs,
+                             const valhalla::odin::DirectionsOptions& directions_options) {
+  Coordinate south_west(std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
+  Coordinate north_east(std::numeric_limits<int>::min(), std::numeric_limits<int>::min());
+
+  std::vector<PointLL> full_shape;
+  std::unordered_set<size_t> indices;
+
+  for (const auto& leg : legs) {
+    auto decoded_leg = midgard::decode<std::vector<PointLL>>(leg.shape());
+    for (const auto& coord : decoded_leg) {
+      south_west.lng = std::min(south_west.lng, toFixed(coord.lng()));
+      south_west.lat = std::min(south_west.lat, toFixed(coord.lat()));
+      north_east.lng = std::max(north_east.lng, toFixed(coord.lng()));
+      north_east.lat = std::max(north_east.lat, toFixed(coord.lat()));
+    }
+
+    for (const auto& maneuver : leg.maneuver()) {
+      indices.emplace(full_shape.size() ? ((full_shape.size() - 1) + maneuver.begin_shape_index())
+                                        : maneuver.begin_shape_index());
+    }
+
+    full_shape.insert(full_shape.end(),
+                      full_shape.size() ? decoded_leg.begin() + 1 : decoded_leg.begin(),
+                      decoded_leg.end());
+  }
+
+  const auto zoom_level = std::min(MAX_ZOOM, getFittedZoom(south_west, north_east));
+  Polyline2<PointLL>::Generalize(full_shape, DOUGLAS_PEUCKER_THRESHOLDS[zoom_level], indices);
+  int precision = directions_options.shape_format() == odin::polyline6 ? 1e6 : 1e5;
+
+  return midgard::encode(full_shape, precision);
 }
 
 // Serialize waypoints for optimized route. Note that OSRM retains the
@@ -782,29 +918,55 @@ names_and_refs(const valhalla::odin::TripDirections::Maneuver& maneuver) {
   return std::make_pair(names, refs);
 }
 
-// Add annotations to the leg
-json::MapPtr annotations(valhalla::odin::EnhancedTripPath* etp) {
-  auto annotations = json::map({});
-
-  // Create distance and duration arrays. Iterate through trip edges and
-  // form distance and duration.
-  // NOTE: if we need to do per node Id pair we could walk the shape,
-  // compute distances, and interpolate durations.
-  uint32_t elapsed_time = 0;
-  auto distances = json::array({});
-  auto durations = json::array({});
-  for (uint32_t idx = 0; idx < etp->node_size() - 1; ++idx) {
-    distances->emplace_back(json::fp_t{etp->GetCurrEdge(idx)->length() * 1000.0f, 1});
-    uint32_t t = etp->node(idx + 1).elapsed_time() > etp->node(idx).elapsed_time()
-                     ? etp->node(idx + 1).elapsed_time() - etp->node(idx).elapsed_time()
-                     : 0;
-    durations->emplace_back(static_cast<uint64_t>(t));
+// This is an initial implementation to be as good or better than the current OSRM response
+// In the future we shall use the percent of name distance as compared to the total distance
+// to determine how many named segments to display.
+// Also, might need to combine some similar named segments
+std::string summarize_leg(std::list<valhalla::odin::TripDirections>::const_iterator leg) {
+  // Create a map of maneuver names to index,distance pairs
+  std::unordered_map<std::string, std::pair<uint32_t, float>> maneuver_summary_map;
+  uint32_t maneuver_index = 0;
+  for (const auto& maneuver : leg->maneuver()) {
+    if (maneuver.street_name_size() > 0) {
+      const std::string& name = maneuver.street_name(0).value();
+      auto maneuver_summary = maneuver_summary_map.find(name);
+      if (maneuver_summary == maneuver_summary_map.end()) {
+        maneuver_summary_map[name] = std::make_pair(maneuver_index, maneuver.length());
+      } else {
+        maneuver_summary->second.second += maneuver.length();
+      }
+    }
+    // Increment maneuver index
+    ++maneuver_index;
   }
 
-  // Add arrays and return
-  annotations->emplace("duration", durations);
-  annotations->emplace("distance", distances);
-  return annotations;
+  // Create a list of named segments (maneuver name, index, distance items)
+  std::vector<NamedSegment> named_segments;
+  for (const auto map_item : maneuver_summary_map) {
+    named_segments.emplace_back(
+        NamedSegment{map_item.first, map_item.second.first, map_item.second.second});
+  }
+
+  // Sort list by descending maneuver distance
+  std::sort(named_segments.begin(), named_segments.end(),
+            [](const NamedSegment& a, const NamedSegment& b) { return b.distance < a.distance; });
+
+  // Reduce the list size to the summary list max
+  named_segments.resize(std::min(named_segments.size(), MAX_USED_SEGMENTS));
+
+  // Sort final list by ascending maneuver index
+  std::sort(named_segments.begin(), named_segments.end(),
+            [](const NamedSegment& a, const NamedSegment& b) { return a.index < b.index; });
+
+  // Create single summary string from list
+  std::stringstream ss;
+  for (size_t i = 0; i < named_segments.size(); ++i) {
+    if (i != 0)
+      ss << ", ";
+    ss << named_segments[i].name;
+  }
+
+  return ss.str();
 }
 
 // Serialize each leg
@@ -841,7 +1003,6 @@ json::ArrayPtr serialize_legs(const std::list<valhalla::odin::TripDirections>& l
     bool rotary = false;
     bool prev_rotary = false;
     auto steps = json::array({});
-    std::unordered_map<std::string, float> maneuvers;
     for (const auto& maneuver : leg->maneuver()) {
       auto step = json::map({});
       bool depart_maneuver = (maneuver_index == 0);
@@ -887,17 +1048,6 @@ json::ArrayPtr serialize_legs(const std::list<valhalla::odin::TripDirections>& l
         step->emplace("rotary_name", maneuver.street_name(0).value());
       }
 
-      // Record street name and distance.. TODO - need to also worry about order
-      if (maneuver.street_name_size() > 0) {
-        const std::string& name = maneuver.street_name(0).value();
-        auto man = maneuvers.find(name);
-        if (man == maneuvers.end()) {
-          maneuvers[name] = distance;
-        } else {
-          man->second += distance;
-        }
-      }
-
       // Add OSRM maneuver
       step->emplace("maneuver",
                     osrm_maneuver(maneuver, etp, shape[maneuver.begin_shape_index()], depart_maneuver,
@@ -927,21 +1077,11 @@ json::ArrayPtr serialize_legs(const std::list<valhalla::odin::TripDirections>& l
     } // end maneuver loop
     //#########################################################################
 
-    // Add annotations. Valhalla cannot support node Ids (Valhalla does
-    // not store node Ids) but can support distance, duration, speed.
-    // NOTE: Valhalla outputs annotations per edge not between node Id
-    // pairs like OSRM does.
-    // Protect against empty trip path
-    if (etp->node_size() > 0) {
-      output_leg->emplace("annotation", annotations(etp));
-    }
-
     // Add distance, duration, weight, and summary
     // Get a summary based on longest maneuvers.
-    std::string summary = "TODO"; // Form summary from longest maneuvers?
     float duration = leg->summary().time();
     float distance = leg->summary().length() * (imperial ? 1609.34f : 1000.0f);
-    output_leg->emplace("summary", summary);
+    output_leg->emplace("summary", summarize_leg(leg));
     output_leg->emplace("distance", json::fp_t{distance, 1});
     output_leg->emplace("duration", json::fp_t{duration, 1});
     output_leg->emplace("weight", json::fp_t{duration, 1});
@@ -992,8 +1132,16 @@ std::string serialize(const valhalla::odin::DirectionsOptions& directions_option
     // Create a route to add to the array
     auto route = json::map({});
 
-    // Get full shape for the route.
-    route->emplace("geometry", full_shape(legs, directions_options));
+    // full geom = !has_generalize()
+    // simplified geom = has_generalize && generalize == 0
+    // no geom = has_generalize && generalize == -1
+    if (directions_options.has_generalize() && directions_options.generalize() == 0.0f) {
+      route->emplace("geometry", simplified_shape(legs, directions_options));
+    } else if (!directions_options.has_generalize() ||
+               (directions_options.has_generalize() && directions_options.generalize() > 0.0f)) {
+      // Get full shape for the route.
+      route->emplace("geometry", full_shape(legs, directions_options));
+    }
 
     // Other route summary information
     route_summary(route, legs, imperial);
