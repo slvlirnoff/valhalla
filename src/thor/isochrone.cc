@@ -694,7 +694,7 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
     // Reset cost, wait and walking distance
     Cost newcost = pred.cost();
     float wait_at_start = pred.wait_at_start();
-    const TransitDeparture* departure; // potential transit departure
+    const TransitDeparture* departure = nullptr; // potential transit departure
 
     uint32_t walking_distance = pred.path_distance();
 
@@ -883,6 +883,7 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
         adjacencylist_->add(idx);
       }
 
+
       // Look up the next departures along this edge
       if (departure) {
 
@@ -974,13 +975,13 @@ std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeMultiModal(
     const TravelMode mode) {
   // For pedestrian costing - set flag allowing use of transit connections
   // Set pedestrian costing to use max distance. TODO - need for other modes
-  const auto& pc = mode_costing[static_cast<uint8_t>(TravelMode::kPedestrian)];
+  const auto& pc = mode_costing[static_cast<uint32_t>(TravelMode::kPedestrian)];
   pc->SetAllowTransitConnections(true);
   pc->UseMaxMultiModalDistance();
 
   // Set the mode from the origin
   mode_ = mode;
-  const auto& tc = mode_costing[static_cast<uint8_t>(TravelMode::kPublicTransit)];
+  const auto& tc = mode_costing[static_cast<uint32_t>(TravelMode::kPublicTransit)];
 
   // Get maximum transfer distance (TODO - want to allow unlimited walking once
   // you get off the transit stop...)
@@ -988,11 +989,11 @@ std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeMultiModal(
 
   // Initialize and create the isotile
   max_seconds_ = max_minutes * 60;
-  InitializeMultiModal(mode_costing[static_cast<uint8_t>(mode_)]->UnitSize());
+  InitializeMultiModal(mode_costing[static_cast<uint32_t>(mode_)]->UnitSize());
   ConstructIsoTile(true, max_minutes, origin_locations);
 
   // Set the origin locations.
-  SetOriginLocationsMM(graphreader, origin_locations, mode_costing[static_cast<uint8_t>(mode_)]);
+  SetOriginLocationsMM(graphreader, origin_locations, mode_costing[static_cast<uint32_t>(mode_)]);
 
   // For now the date_time must be set on the origin.
   if (!origin_locations.Get(0).has_date_time()) {
@@ -1243,7 +1244,7 @@ void Isochrone::SetOriginLocationsMM(
 
       // Disallow any user avoid edges if the avoid location is ahead of the origin along the edge
       GraphId edgeid(edge.graph_id());
-      if (costing_->AvoidAsOriginEdge(edgeid, edge.percent_along())) {
+      if (costing->AvoidAsOriginEdge(edgeid, edge.percent_along())) {
         continue;
       }
 
