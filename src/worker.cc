@@ -202,8 +202,7 @@ const std::unordered_map<unsigned, std::string> OSRM_ERRORS_CODES{
     {164,
      R"({"code":"InvalidValue","message":"The successfully parsed query parameters are invalid."})"},
 
-    {170,
-     R"({"code":"InvalidValue","message":"The successfully parsed query parameters are invalid."})"},
+    {170, R"({"code":"NoRoute","message":"Impossible route between points"})"},
     {171,
      R"({"code":"NoSegment","message":"One of the supplied input coordinates could not snap to street segment."})"},
 
@@ -415,6 +414,11 @@ void parse_locations(const rapidjson::Document& doc,
           location->set_street_side_tolerance(*street_side_tolerance);
         }
       } catch (...) { throw valhalla_exception_t{location_parse_error_code}; }
+    }
+    // first and last locations get the default type of break no matter what
+    if (locations->size()) {
+      locations->Mutable(0)->set_type(odin::Location::kBreak);
+      locations->Mutable(locations->size() - 1)->set_type(odin::Location::kBreak);
     }
     if (track) {
       midgard::logging::Log(node + "_count::" + std::to_string(request_locations->Size()),
