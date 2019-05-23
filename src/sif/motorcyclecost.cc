@@ -269,8 +269,8 @@ public:
   virtual const EdgeFilter GetEdgeFilter() const {
     // Throw back a lambda that checks the access for this type of costing
     return [](const baldr::DirectedEdge* edge) {
-      if (edge->IsTransition() || edge->is_shortcut() ||
-          !(edge->forwardaccess() & kMotorcycleAccess) || edge->surface() > kMinimumMotorcycleSurface)
+      if (edge->is_shortcut() || !(edge->forwardaccess() & kMotorcycleAccess) ||
+          edge->surface() > kMinimumMotorcycleSurface)
         return 0.0f;
       else {
         // TODO - use classification/use to alter the factor
@@ -487,7 +487,7 @@ Cost MotorcycleCost::TransitionCost(const baldr::DirectedEdge* edge,
     if (edge->edge_to_right(idx) && edge->edge_to_left(idx)) {
       turn_cost = kTCCrossing;
     } else {
-      turn_cost = (edge->drive_on_right())
+      turn_cost = (node->drive_on_right())
                       ? kRightSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))]
                       : kLeftSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))];
     }
@@ -517,7 +517,7 @@ Cost MotorcycleCost::TransitionCostReverse(const uint32_t idx,
     if (edge->edge_to_right(idx) && edge->edge_to_left(idx)) {
       turn_cost = kTCCrossing;
     } else {
-      turn_cost = (edge->drive_on_right())
+      turn_cost = (node->drive_on_right())
                       ? kRightSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))]
                       : kLeftSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))];
     }
@@ -672,7 +672,7 @@ std::uniform_real_distribution<T>* make_distributor_from_range(const ranged_defa
 void testMotorcycleCostParams() {
   constexpr unsigned testIterations = 250;
   constexpr unsigned seed = 0;
-  std::default_random_engine generator(seed);
+  std::mt19937 generator(seed);
   std::shared_ptr<std::uniform_real_distribution<float>> distributor;
   std::shared_ptr<TestMotorcycleCost> ctorTester;
 

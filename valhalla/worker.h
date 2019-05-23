@@ -29,6 +29,8 @@ const std::string& DirectionsOptions_Format_Name(const odin::DirectionsOptions::
 const std::string& DirectionsOptions_Units_Name(const odin::DirectionsOptions::Units unit);
 bool FilterAction_Parse(const std::string& action, odin::FilterAction* a);
 const std::string& FilterAction_Name(const odin::FilterAction action);
+bool DirectionsType_Parse(const std::string& dtype, odin::DirectionsType* t);
+bool PreferredSide_Parse(const std::string& pside, odin::Location::PreferredSide* p);
 } // namespace odin
 
 const std::unordered_map<unsigned, std::string>
@@ -59,6 +61,7 @@ const std::unordered_map<unsigned, std::string>
                 {133, "Failed to parse avoid"},
                 {134, "Failed to parse shape"},
                 {135, "Failed to parse trace"},
+                {136, "durations size not compatible with trace size"},
 
                 {140, "Action does not support multimodal costing"},
                 {141, "Arrive by for multimodal not implemented yet"},
@@ -74,11 +77,13 @@ const std::unordered_map<unsigned, std::string>
                 {156, "Outside the valid walking distance between stops of a multimodal route"},
                 {157, "Exceeded max avoid locations"},
                 {158, "Input trace option is out of bounds"},
+                {159, "use_timestamps set with no timestamps present"},
 
                 {160, "Date and time required for origin for date_type of depart at"},
                 {161, "Date and time required for destination for date_type of arrive by"},
                 {162, "Date and time is invalid.  Format is YYYY-MM-DDTHH:MM"},
                 {163, "Invalid date_type"},
+                {164, "Invalid shape format"},
 
                 {170, "Locations are in unconnected regions. Go check/edit the map at osm.org"},
                 {171, "No suitable edges near location"},
@@ -141,6 +146,7 @@ const std::unordered_map<unsigned, std::string>
                 {500, "Failed to parse intermediate request format"},
                 {501, "Failed to parse TripDirections"},
                 {502, "Maneuver index not found for specified shape index"},
+                {503, "Leg count mismatch"},
 
                 {599, "Unknown"}};
 

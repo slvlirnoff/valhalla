@@ -194,18 +194,18 @@ MultiModalPathAlgorithm::GetBestPath(odin::Location& origin,
     MMEdgeLabel pred = edgelabels_[predindex];
     bool has_transit = pred.has_transit();
     if (destinations_.find(pred.edgeid()) != destinations_.end()) {
-      if(!has_transit) {
-        LOG_INFO("Prevent form_path because no transit yet");
+      if (!has_transit) {
+        LOG_INFO("Prevent form_path because no fucking transit yet");
         continue;
       }
       // Check if a trivial path. Skip if no predecessor and not
       // trivial (cannot reach destination along this one edge).
       if (pred.predecessor() == kInvalidLabel) {
         if (IsTrivial(pred.edgeid(), origin, destination)) {
-          return FormPath(predindex);
+          return FormPath(graphreader, predindex);
         }
       } else {
-        return FormPath(predindex);
+        return FormPath(graphreader, predindex);
       }
     }
 
@@ -351,24 +351,10 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
       continue;
     }
 
-    // Handle transition edges - expand from the end node of the transition
-    // (unless this is called from a transition).
-    if (directededge->trans_up()) {
-      if (!from_transition) {
-        ExpandForward(graphreader, directededge->endnode(), pred, pred_idx, true, pc, tc,
-                      mode_costing);
-      }
-      continue;
-    } else if (directededge->trans_down()) {
-      if (!from_transition) {
-        ExpandForward(graphreader, directededge->endnode(), pred, pred_idx, true, pc, tc,
-                      mode_costing);
-      }
-      continue;
-    }
-
     // Reset cost and walking distance
     Cost newcost = pred.cost();
+    float wait_at_start = pred.wait_at_start();
+    float wait_at_stop = 0;
     walking_distance_ = pred.path_distance();
 
     // If this is a transit edge - get the next departure. Do not check
@@ -431,20 +417,26 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           newcost.cost += transfer_cost.cost;
         }
 
-        if(!pred.has_transit()) {
+        if (!pred.has_transit()) {
           // If first transit line remove waiting time into cost
           // this should favor transit over direct pedestrian
           // TODO: weight it down instead to prefer transit options that
           // arrives earlier even if higher cost because slower
-          /*
-          LOG_INFO("remove transit first waiting time from cost " + std::to_string(departure->departure_time() - localtime));
+          LOG_INFO("remove transit first waiting time from cost " +
+                   std::to_string(departure->departure_time() - localtime));
           LOG_INFO("- locatime " + std::to_string(localtime));
           LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
-          LOG_INFO("=> max 10 mn => " + std::to_string( std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime) ));
-	  */
+          LOG_INFO("=> max 10 mn => " +
+                   std::to_string(std::min(static_cast<uint32_t>(600),
+                                           departure->departure_time() - localtime)));
 
           // Up to one hour ...
-          newcost.cost -= std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
+          newcost.cost -=
+              std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
+          wait_at_start = departure->departure_time() - localtime;
+          wait_at_stop = wait_at_start;
+        } else {
+          wait_at_stop = departure->departure_time() - localtime;
         }
 
         // Change mode and costing to transit. Add edge cost.
@@ -531,7 +523,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
       if (newcost.cost < lab.cost().cost) {
         float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
         adjacencylist_->decrease(es->index(), newsortcost);
-        lab.Update(pred_idx, newcost, newsortcost, walking_distance_, tripid, blockid);
+        lab.Update(pred_idx, newcost, wait_at_start, wait_at_stop, newsortcost, walking_distance_, tripid, blockid);
       }
       continue;
     }
@@ -549,17 +541,25 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
         continue;
       }
       const NodeInfo* endnode = endtile->node(directededge->endnode());
-      dist = astarheuristic_.GetDistance(endnode->latlng());
+      dist = astarheuristic_.GetDistance(endnode->latlng(endtile->header()->base_ll()));
       sortcost += astarheuristic_.Get(dist);
     }
 
     // Add edge label, add to the adjacency list and set edge status
     uint32_t idx = edgelabels_.size();
     *es = {EdgeSet::kTemporary, idx};
-    edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, sortcost, dist, mode_,
+    edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_at_start, wait_at_stop, sortcost, dist, mode_,
                              walking_distance_, tripid, prior_stop, blockid, operator_id,
                              has_transit);
     adjacencylist_->add(idx);
+  }
+
+  // Handle transitions - expand from the end node each transition
+  if (!from_transition && nodeinfo->transition_count() > 0) {
+    const NodeTransition* trans = tile->transition(nodeinfo->transition_index());
+    for (uint32_t i = 0; i < nodeinfo->transition_count(); ++i, ++trans) {
+      ExpandForward(graphreader, trans->endnode(), pred, pred_idx, true, pc, tc, mode_costing);
+    }
   }
   return false;
 }
@@ -585,8 +585,13 @@ void MultiModalPathAlgorithm::SetOrigin(GraphReader& graphreader,
       continue;
     }
 
-    // Get the directed edge
+    // Disallow any user avoid edges if the avoid location is ahead of the origin along the edge
     GraphId edgeid(edge.graph_id());
+    if (costing->AvoidAsOriginEdge(edgeid, edge.percent_along())) {
+      continue;
+    }
+
+    // Get the directed edge
     const GraphTile* tile = graphreader.GetGraphTile(edgeid);
     const DirectedEdge* directededge = tile->directededge(edgeid);
 
@@ -601,7 +606,7 @@ void MultiModalPathAlgorithm::SetOrigin(GraphReader& graphreader,
     nodeinfo = endtile->node(directededge->endnode());
     Cost cost =
         costing->EdgeCost(directededge, tile->GetSpeed(directededge)) * (1.0f - edge.percent_along());
-    float dist = astarheuristic_.GetDistance(nodeinfo->latlng());
+    float dist = astarheuristic_.GetDistance(nodeinfo->latlng(endtile->header()->base_ll()));
 
     // We need to penalize this location based on its score (distance in meters from input)
     // We assume the slowest speed you could travel to cover that distance to start/end the route
@@ -649,7 +654,7 @@ void MultiModalPathAlgorithm::SetOrigin(GraphReader& graphreader,
     // Set the predecessor edge index to invalid to indicate the origin
     // of the path.
     uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.percent_along()));
-    MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, sortcost, dist, mode_, d, 0,
+    MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, 0.0f, sortcost, dist, mode_, d, 0,
                            GraphId(), 0, 0, false);
     // Set the origin flag
     edge_label.set_origin();
@@ -688,12 +693,16 @@ uint32_t MultiModalPathAlgorithm::SetDestination(GraphReader& graphreader,
       continue;
     }
 
-    // Keep the id and the cost to traverse the partial distance for the
-    // remainder of the edge. This cost is subtracted from the total cost
-    // up to the end of the destination edge.
-    GraphId id(edge.graph_id());
-    const GraphTile* tile = graphreader.GetGraphTile(id);
-    const DirectedEdge* dest_diredge = tile->directededge(id);
+    // Disallow any user avoided edges if the avoid location is behind the destination along the edge
+    GraphId edgeid(edge.graph_id());
+    if (costing->AvoidAsDestinationEdge(edgeid, edge.percent_along())) {
+      continue;
+    }
+
+    // Keep the cost to traverse the partial distance for the remainder of the edge. This cost
+    // is subtracted from the total cost up to the end of the destination edge.
+    const GraphTile* tile = graphreader.GetGraphTile(edgeid);
+    const DirectedEdge* dest_diredge = tile->directededge(edgeid);
     destinations_[edge.graph_id()] =
         costing->EdgeCost(dest_diredge, tile->GetSpeed(dest_diredge)) * (1.0f - edge.percent_along());
 
@@ -742,22 +751,6 @@ bool MultiModalPathAlgorithm::ExpandFromNode(baldr::GraphReader& graphreader,
   EdgeStatusInfo* es = edgestatus.GetPtr(edgeid, tile);
   const DirectedEdge* directededge = tile->directededge(nodeinfo->edge_index());
   for (uint32_t i = 0; i < nodeinfo->edge_count(); i++, directededge++, ++edgeid, ++es) {
-    // Handle transition edges - expand from the end node of the transition
-    // (unless this is called from a transition).
-    if (directededge->trans_up()) {
-      if (!from_transition) {
-        ExpandFromNode(graphreader, directededge->endnode(), pred, pred_idx, costing, edgestatus,
-                       edgelabels, adjlist, true);
-      }
-      continue;
-    } else if (directededge->trans_down()) {
-      if (!from_transition) {
-        ExpandFromNode(graphreader, directededge->endnode(), pred, pred_idx, costing, edgestatus,
-                       edgelabels, adjlist, true);
-      }
-      continue;
-    }
-
     // Skip this edge if permanently labeled (best path already found to this directed edge) or
     // access is not allowed for this mode.
     if (es->set() == EdgeSet::kPermanent ||
@@ -787,6 +780,15 @@ bool MultiModalPathAlgorithm::ExpandFromNode(baldr::GraphReader& graphreader,
                             walking_distance);
     *es = {EdgeSet::kTemporary, idx};
     adjlist.add(idx);
+  }
+
+  // Handle transitions - expand from the end node each transition
+  if (!from_transition && nodeinfo->transition_count() > 0) {
+    const NodeTransition* trans = tile->transition(nodeinfo->transition_index());
+    for (uint32_t i = 0; i < nodeinfo->transition_count(); ++i, ++trans) {
+      ExpandFromNode(graphreader, trans->endnode(), pred, pred_idx, costing, edgestatus, edgelabels,
+                     adjlist, true);
+    }
   }
   return false;
 }
@@ -821,6 +823,13 @@ bool MultiModalPathAlgorithm::CanReachDestination(const odin::Location& destinat
     float ratio = (1.0f - edge.percent_along());
     GraphId id(edge.graph_id());
     GraphId oppedge = graphreader.GetOpposingEdgeId(id);
+
+    // Disallow any user avoided edges if the avoid location is behind the destination along the edge
+    GraphId edgeid(edge.graph_id());
+    if (costing->AvoidAsDestinationEdge(edgeid, ratio)) {
+      continue;
+    }
+
     const GraphTile* tile = graphreader.GetGraphTile(oppedge);
     const DirectedEdge* diredge = tile->directededge(oppedge);
     uint32_t length = static_cast<uint32_t>(diredge->length()) * ratio;
@@ -851,16 +860,157 @@ bool MultiModalPathAlgorithm::CanReachDestination(const odin::Location& destinat
 }
 
 // Form the path from the adjacency list.
-std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(const uint32_t dest) {
+std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader, const uint32_t dest) {
   // Metrics to track
   LOG_DEBUG("path_cost::" + std::to_string(edgelabels_[dest].cost().cost));
   LOG_DEBUG("path_iterations::" + std::to_string(edgelabels_.size()));
 
-  // Work backwards from the destination
+  MMEdgeLabel* previous_pt = nullptr;
+  uint32_t previous_pt_idx;
+  float delta = 0;
+  int32_t new_tripid  = 0;
+
+  if(true) {
+    // Work backwards from the destination to optimise transit departures
+    for (auto edgelabel_index = dest; edgelabel_index != kInvalidLabel;
+        edgelabel_index = edgelabels_[edgelabel_index].predecessor()) {
+      // Pointer on current edge
+      MMEdgeLabel* current = &edgelabels_[edgelabel_index];
+      if(current->mode() == TravelMode::kPublicTransit) {
+        // Check if it can be optimised (wrt next transit stop)
+        if(previous_pt && current->tripid() != previous_pt->tripid()) {
+          // Available time for later departure
+          auto available_wait = previous_pt->wait_at_stop();
+          // predecessing edge
+          auto predecessor = &edgelabels_[current->predecessor()];
+          delta = 0.0;
+          // Get tile of the departure node of the transit edge
+          const GraphTile* tile = graphreader.GetGraphTile(predecessor->endnode());
+          // Get information about the transit edge from the tile tile
+          const DirectedEdge* edge = tile->directededge(current->edgeid());
+          auto transit_departure_time = start_time_ + predecessor->cost().secs + current->wait_at_stop();
+
+          // Find next potential departure of that line
+          const TransitDeparture* departure = nullptr;
+          auto next_departure_time = transit_departure_time + 1;
+
+          do {
+            const TransitDeparture* next_departure = tile->GetNextDeparture(edge->lineid(), next_departure_time, day_, dow_, date_before_tile_,
+                                  false, false);
+
+            // Can't be optimised
+            if(!next_departure) {
+              LOG_INFO("no departure to optimise with");
+              break;
+            }
+
+
+            // For for potential further departure that would still fit
+            LOG_INFO("Next departure " + std::to_string(next_departure->departure_time()));
+            if(next_departure->departure_time() - transit_departure_time <= available_wait + 1) { // +1 rounding error
+              // Save best found and check for the next one
+              departure = next_departure;
+              next_departure_time = next_departure->departure_time() + 1;
+              delta = departure->departure_time() - transit_departure_time;
+              new_tripid = departure->tripid();
+            } else {
+              break;
+            }
+            LOG_INFO("next departure later delta " + std::to_string(delta) + " vs " + std::to_string(available_wait));
+
+
+          } while(true);
+
+          // relevant departure
+          if(departure && delta <= (available_wait + 1)) { // +1 rounding error
+            // Update previous public transit leg wait at stop information
+            previous_pt->Update(
+              previous_pt->predecessor(),
+              previous_pt->cost(),
+              previous_pt->wait_at_start(),
+              previous_pt->wait_at_stop() - delta,
+              previous_pt->sortcost(),
+              previous_pt->path_distance(),
+              previous_pt->tripid(),
+              previous_pt->blockid()
+            );
+
+            // Go through all edge between current leg and previous transport object and update elasped time to reflect the change
+            for (auto idx = edgelabels_[previous_pt_idx].predecessor(); idx != current->predecessor();
+              idx = edgelabels_[idx].predecessor()) {
+              auto label = &edgelabels_[idx];
+              // Add departure change to the cost, TODO: Improve, for now assume duration stay the same
+              auto newcost = label->cost();
+              newcost.cost += delta;
+              newcost.secs += delta;
+              // Update the label with new cost, trip id and waiting time
+              label->Update(
+                label->predecessor(),
+                newcost,
+                label->wait_at_start(),
+                idx == edgelabel_index ? label->wait_at_stop() + delta : label->wait_at_stop() ,
+                label->sortcost(),
+                label->path_distance(),
+                label->tripid() ? new_tripid : 0,
+                label->blockid()
+              );
+            }
+          }
+          
+        }
+        // Update pointer to previous PT leg
+        previous_pt = current;
+        previous_pt_idx = edgelabel_index;
+      } else if (delta > 0.0f) {
+        auto newcost = current->cost();
+        newcost.cost += delta;
+        newcost.secs += delta;
+        current->Update(
+            current->predecessor(),
+            newcost,
+            current->wait_at_start(),
+            current->wait_at_stop(),
+            current->sortcost(),
+            current->path_distance(),
+            current->tripid() ? new_tripid : 0,
+            current->blockid()
+        );
+      }
+
+    }
+    if(previous_pt) {
+      delta = previous_pt->wait_at_start();
+      LOG_INFO("update last walkings with " + std::to_string(delta));
+      // Update last walking before public transport
+      for (auto idx = edgelabels_[previous_pt_idx].predecessor(); idx != kInvalidLabel;
+        idx = edgelabels_[idx].predecessor()) {
+        auto label = &edgelabels_[idx];
+        LOG_INFO("trip id " + std::to_string(label->tripid()));
+        auto newcost = label->cost();
+        newcost.cost += delta;
+        newcost.secs += delta;
+        label->Update(
+          label->predecessor(),
+          newcost,
+          label->wait_at_start(),
+          label->wait_at_stop(),
+          label->sortcost(),
+          label->path_distance(),
+          label->tripid(),
+          label->blockid()
+        );
+        LOG_INFO("increase " + std::to_string(idx) + " by " + std::to_string(delta) + " to " + std::to_string(start_time_ + newcost.secs));
+      }
+
+    }
+  }
+  
   std::vector<PathInfo> path;
   for (auto edgelabel_index = dest; edgelabel_index != kInvalidLabel;
        edgelabel_index = edgelabels_[edgelabel_index].predecessor()) {
-    const MMEdgeLabel& edgelabel = edgelabels_[edgelabel_index];
+
+    MMEdgeLabel& edgelabel = edgelabels_[edgelabel_index];
+    LOG_INFO("emplace back idx " + std::to_string(edgelabel_index) + " step time " + std::to_string(start_time_ + edgelabel.cost().secs));
     path.emplace_back(edgelabel.mode(), edgelabel.cost().secs, edgelabel.edgeid(),
                       edgelabel.tripid());
 
@@ -868,6 +1018,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(const uint32_t dest) {
     if (edgelabel.use() == Use::kFerry) {
       has_ferry_ = true;
     }
+
   }
 
   // Reverse the list and return

@@ -116,7 +116,7 @@ void walk_edges(const std::string& shape, GraphReader& reader, cost_ptr_t cost_p
 
   std::vector<PathInfo> path_infos;
   std::vector<PathLocation> correlated;
-  bool rtn = RouteMatcher::FormPath(mode_costing, mode, reader, measurements,
+  bool rtn = RouteMatcher::FormPath(mode_costing, mode, reader, measurements, false,
                                     directions_options.locations(), path_infos);
   if (!rtn) {
     std::cerr << "ERROR: RouteMatcher returned false - did not match complete shape." << std::endl;
@@ -242,8 +242,8 @@ int main(int argc, char* argv[]) {
 
           loc.date_time_ = pt.get_optional<std::string>("date_time");
           loc.heading_ = pt.get_optional<float>("heading");
-          loc.heading_tolerance_ = pt.get_optional<float>("heading_tolerance");
-          loc.node_snap_tolerance_ = pt.get_optional<float>("node_snap_tolerance");
+          loc.heading_tolerance_ = pt.get<float>("heading_tolerance", loc.heading_tolerance_);
+          loc.node_snap_tolerance_ = pt.get<float>("node_snap_tolerance", loc.node_snap_tolerance_);
           loc.way_id_ = pt.get_optional<long double>("way_id");
 
           loc.minimum_reachability_ = pt.get<unsigned int>("minimum_reachability", 50);

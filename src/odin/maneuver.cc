@@ -110,10 +110,11 @@ Maneuver::Maneuver()
       transit_connection_(false), rail_(false), bus_(false), fork_(false),
       begin_intersecting_edge_name_consistency_(false), intersecting_forward_edge_(false),
       tee_(false), unnamed_walkway_(false), unnamed_cycleway_(false),
-      unnamed_mountain_bike_trail_(false), verbal_multi_cue_(false) {
+      unnamed_mountain_bike_trail_(false), verbal_multi_cue_(false), to_stay_on_(false) {
   street_names_ = midgard::make_unique<StreetNames>();
   begin_street_names_ = midgard::make_unique<StreetNames>();
   cross_street_names_ = midgard::make_unique<StreetNames>();
+  roundabout_exit_street_names_ = midgard::make_unique<StreetNames>();
 }
 
 const TripDirections_Maneuver_Type& Maneuver::type() const {
@@ -124,11 +125,17 @@ void Maneuver::set_type(const TripDirections_Maneuver_Type& type) {
   type_ = type;
 }
 
+bool Maneuver::IsDestinationType() const {
+  return ((type_ == TripDirections_Maneuver_Type_kDestination) ||
+          (type_ == TripDirections_Maneuver_Type_kDestinationLeft) ||
+          (type_ == TripDirections_Maneuver_Type_kDestinationRight));
+}
+
 const StreetNames& Maneuver::street_names() const {
   return *street_names_;
 }
 
-void Maneuver::set_street_names(const std::vector<std::string>& names) {
+void Maneuver::set_street_names(const std::vector<std::pair<std::string, bool>>& names) {
   street_names_ = midgard::make_unique<StreetNamesUs>(names);
 }
 
@@ -138,6 +145,10 @@ void Maneuver::set_street_names(std::unique_ptr<StreetNames>&& street_names) {
 
 bool Maneuver::HasStreetNames() const {
   return (!street_names_->empty());
+}
+
+void Maneuver::ClearStreetNames() {
+  street_names_->clear();
 }
 
 bool Maneuver::HasSameNames(const Maneuver* other_maneuver,
@@ -184,7 +195,7 @@ const StreetNames& Maneuver::begin_street_names() const {
   return *begin_street_names_;
 }
 
-void Maneuver::set_begin_street_names(const std::vector<std::string>& names) {
+void Maneuver::set_begin_street_names(const std::vector<std::pair<std::string, bool>>& names) {
   begin_street_names_ = midgard::make_unique<StreetNamesUs>(names);
 }
 
@@ -196,11 +207,15 @@ bool Maneuver::HasBeginStreetNames() const {
   return (!begin_street_names_->empty());
 }
 
+void Maneuver::ClearBeginStreetNames() {
+  begin_street_names_->clear();
+}
+
 const StreetNames& Maneuver::cross_street_names() const {
   return *cross_street_names_;
 }
 
-void Maneuver::set_cross_street_names(const std::vector<std::string>& names) {
+void Maneuver::set_cross_street_names(const std::vector<std::pair<std::string, bool>>& names) {
   cross_street_names_ = midgard::make_unique<StreetNamesUs>(names);
 }
 
@@ -210,6 +225,10 @@ void Maneuver::set_cross_street_names(std::unique_ptr<StreetNames>&& cross_stree
 
 bool Maneuver::HasCrossStreetNames() const {
   return (!cross_street_names_->empty());
+}
+
+void Maneuver::ClearCrossStreetNames() {
+  cross_street_names_->clear();
 }
 
 const std::string& Maneuver::instruction() const {
@@ -573,6 +592,36 @@ bool Maneuver::verbal_multi_cue() const {
 
 void Maneuver::set_verbal_multi_cue(bool verbal_multi_cue) {
   verbal_multi_cue_ = verbal_multi_cue;
+}
+
+bool Maneuver::to_stay_on() const {
+  return to_stay_on_;
+}
+
+void Maneuver::set_to_stay_on(bool to_stay_on) {
+  to_stay_on_ = to_stay_on;
+}
+
+const StreetNames& Maneuver::roundabout_exit_street_names() const {
+  return *roundabout_exit_street_names_;
+}
+
+void Maneuver::set_roundabout_exit_street_names(
+    const std::vector<std::pair<std::string, bool>>& names) {
+  roundabout_exit_street_names_ = midgard::make_unique<StreetNamesUs>(names);
+}
+
+void Maneuver::set_roundabout_exit_street_names(
+    std::unique_ptr<StreetNames>&& roundabout_exit_street_names) {
+  roundabout_exit_street_names_ = std::move(roundabout_exit_street_names);
+}
+
+bool Maneuver::HasRoundaboutExitStreetNames() const {
+  return (!roundabout_exit_street_names_->empty());
+}
+
+void Maneuver::ClearRoundaboutExitStreetNames() {
+  roundabout_exit_street_names_->clear();
 }
 
 TripPath_TravelMode Maneuver::travel_mode() const {

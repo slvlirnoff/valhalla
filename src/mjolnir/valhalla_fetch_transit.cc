@@ -174,27 +174,27 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
   request += transit_bounding_box;
   request += active_feed_version_import_level;
 
-  // For test purpose, transit_bounding_box wasn't working properly, fixed it.
-  auto bbox = pt.get_optional<std::string>("mjolnir.transit_bounding_box") ? pt.get<std::string>("mjolnir.transit_bounding_box") : "";
+  auto bbox = pt.get_optional<std::string>("mjolnir.transit_bounding_box")
+                  ? pt.get<std::string>("mjolnir.transit_bounding_box")
+                  : "";
   auto fixed_min_x = -180.0;
   auto fixed_min_y = -90.0;
   auto fixed_max_x = 180.0;
   auto fixed_max_y = 90.0;
 
-  if(bbox != "") {
-  std::vector<std::string> parts;
-  LOG_WARN("Parsing in parts: " + transit_bounding_box);
-  boost::algorithm::split(parts, bbox, boost::is_any_of(","));
+  if (bbox != "") {
+    std::vector<std::string> parts;
+    LOG_WARN("Parsing in parts: " + transit_bounding_box);
+    boost::algorithm::split(parts, bbox, boost::is_any_of(","));
 
-  LOG_WARN("Parsing in parts: " + parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]);
+    LOG_WARN("Parsing in parts: " + parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]);
 
-  fixed_min_x = std::stof(parts[0]);
-  fixed_min_y = std::stof(parts[1]);
-  fixed_max_x = std::stof(parts[2]);
-  fixed_max_y = std::stof(parts[3]);
-
-
+    fixed_min_x = std::stof(parts[0]);
+    fixed_min_y = std::stof(parts[1]);
+    fixed_max_x = std::stof(parts[2]);
+    fixed_max_y = std::stof(parts[3]);
   }
+
   auto feeds = curler(request, "features");
   for (const auto& feature : feeds.get_child("features")) {
 
@@ -226,20 +226,29 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (y > max_y) {
           max_y = y;
         }
-      	if (min_x < fixed_min_x) {
-      	  min_x = fixed_min_x;
-      	}
-      	if (max_x > fixed_max_x) {
-      	  max_x = fixed_max_x;
-      	}
+        LOG_INFO("Old BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " +
+                 std::to_string(min_y) + " " + std::to_string(max_y));
+        if (min_x < fixed_min_x) {
+          min_x = fixed_min_x;
+        }
+        if(max_x < min_x) {
+          max_x = min_x;
+        }
+        if (max_x > fixed_max_x) {
+          max_x = fixed_max_x;
+        }
         if (min_y < fixed_min_y) {
           min_y = fixed_min_y;
+        }
+        if(max_y < min_y) {
+          max_y = min_y;
         }
         if (max_y > fixed_max_y) {
           max_y = fixed_max_y;
         }
-        LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " + std::to_string(min_y) + " " + std::to_string(max_y) );
-        LOG_INFO("fixed boundary: " + std::to_string(fixed_min_x) + " " + std::to_string(fixed_max_x) + " " + std::to_string(fixed_min_y) + " " + std::to_string(fixed_max_y) );
+        LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " +
+                 std::to_string(min_y) + " " + std::to_string(max_y));
+
 
       }
 
@@ -469,10 +478,13 @@ void get_routes(Transit& tile,
       type = Transit_VehicleType::Transit_VehicleType_kMetro;
     } else if (vehicle_type == "rail" || vehicle_type == "suburban_railway" ||
                vehicle_type == "railway_service" || vehicle_type == "sleeper_rail_service" ||
-	     vehicle_type == "long_distance_trains" || vehicle_type == "regional_rail_service" ||
-	     vehicle_type == "inter_regional_rail_service" ||  vehicle_type == "null" || vehicle_type == "high_speed_rail_service") {
+               vehicle_type == "long_distance_trains" || vehicle_type == "regional_rail_service" ||
+               vehicle_type == "inter_regional_rail_service" || vehicle_type == "null" ||
+               vehicle_type == "high_speed_rail_service") {
       type = Transit_VehicleType::Transit_VehicleType_kRail;
-    } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" || vehicle_type == "taxi_service" || vehicle_type == "communal_taxi_service" ||  // sbb oftern marks replacement bus as taxi_service
+    } else if (vehicle_type == "bus" || vehicle_type == "trolleybus_service" ||
+               vehicle_type == "taxi_service" ||
+               vehicle_type == "communal_taxi_service" || // Some SBB Buses
                vehicle_type == "express_bus_service" || vehicle_type == "local_bus_service" ||
                vehicle_type == "bus_service" || vehicle_type == "shuttle_bus" ||
                vehicle_type == "demand_and_response_bus_service" ||
@@ -568,8 +580,7 @@ bool get_stop_pairs(Transit& tile,
                     std::unordered_map<std::string, std::string>& websites,
                     std::unordered_map<std::string, std::string>& short_names,
                     const ptree& pt,
-                    pt_curler_t curler
-                ) {
+                    pt_curler_t curler) {
   bool dangles = false;
   for (const auto& pair_pt : response.get_child("schedule_stop_pairs")) {
     auto* pair = tile.add_stop_pairs();
@@ -616,26 +627,27 @@ bool get_stop_pairs(Transit& tile,
     auto route_id = pair_pt.second.get<std::string>("route_onestop_id");
     auto route = routes.find(route_id);
     if (route == routes.cend()) {
-      if(route_id == "null") {
+      if (route_id == "null") {
         LOG_ERROR("route_id is null, removed");
         tile.mutable_stop_pairs()->RemoveLast();
-        continue; 
+        continue;
       }
       boost::optional<std::string> request =
-        url((boost::format(
-                 "/api/v1/"
-                 "routes?total=false&include_geometry=false&onestop_id=%1%") % url_encode(route_id))
-                .str(),
-            pt);
+          url((boost::format("/api/v1/"
+                             "routes?total=false&include_geometry=false&onestop_id=%1%") %
+               url_encode(route_id))
+                  .str(),
+              pt);
 
-      //uniques.lock.lock();
-      //if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
+      // uniques.lock.lock();
+      // if (uniques.missing_routes.find(route_id) == uniques.missing_routes.cend()) {
       LOG_INFO("No route - calling it live " + route_id);
-      
+
       auto new_response = curler(*request, "routes");
       int old_size = tile.routes_size();
       get_routes(tile, routes, websites, short_names, new_response);
-      LOG_INFO("route number went from " + std::to_string(old_size) + " to " + std::to_string(tile.routes_size()));
+      LOG_INFO("route number went from " + std::to_string(old_size) + " to " +
+               std::to_string(tile.routes_size()));
 
       route = routes.find(route_id);
 
@@ -647,10 +659,10 @@ bool get_stop_pairs(Transit& tile,
 
       // Get shapes of this route
       request = url((boost::format(
-                   "/api/v1/route_stop_patterns?total=false&per_page=100&traversed_by=%2%") %
-               pt.get<std::string>("per_page") % url_encode(route->first))
-                  .str(),
-              pt);
+                         "/api/v1/route_stop_patterns?total=false&per_page=100&traversed_by=%2%") %
+                     pt.get<std::string>("per_page") % url_encode(route->first))
+                        .str(),
+                    pt);
       do {
         // grab some stuff
         new_response = curler(*request, "route_stop_patterns");
@@ -663,9 +675,9 @@ bool get_stop_pairs(Transit& tile,
       LOG_INFO("Route index will be " + std::to_string(route->second));
       //  uniques.missing_routes.emplace(route_id);
       //}
-      //uniques.lock.unlock();
-      //tile.mutable_stop_pairs()->RemoveLast();
-      //continue;
+      // uniques.lock.unlock();
+      // tile.mutable_stop_pairs()->RemoveLast();
+      // continue;
     }
     pair->set_route_index(route->second);
 

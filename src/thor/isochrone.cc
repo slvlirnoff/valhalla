@@ -209,7 +209,8 @@ void Isochrone::ExpandForward(GraphReader& graphreader,
   if (!from_transition) {
     uint32_t idx = pred.predecessor();
     float secs0 = (idx == kInvalidLabel) ? 0 : edgelabels_[idx].cost().secs;
-    UpdateIsoTile(pred, graphreader, nodeinfo->latlng(), secs0);
+    float secs1 = pred.cost().secs;
+    UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0, secs1);
   }
   if (!costing_->Allowed(nodeinfo)) {
     return;
@@ -230,22 +231,6 @@ void Isochrone::ExpandForward(GraphReader& graphreader,
   EdgeStatusInfo* es = edgestatus_.GetPtr(edgeid, tile);
   const DirectedEdge* directededge = tile->directededge(edgeid);
   for (uint32_t i = 0; i < nodeinfo->edge_count(); ++i, ++directededge, ++edgeid, ++es) {
-    // Handle transition edges - expand from the end node of the transition
-    // (unless this is called from a transition).
-    if (directededge->trans_up()) {
-      if (!from_transition) {
-        ExpandForward(graphreader, directededge->endnode(), pred, pred_idx, true, localtime,
-                      seconds_of_week);
-      }
-      continue;
-    } else if (directededge->trans_down()) {
-      if (!from_transition) {
-        ExpandForward(graphreader, directededge->endnode(), pred, pred_idx, true, localtime,
-                      seconds_of_week);
-      }
-      continue;
-    }
-
     // Skip this edge if permanently labeled (best path already found to this
     // directed edge). skip shortcuts or if no access is allowed to this edge
     // (based on the costing method) or if a complex restriction exists for
@@ -297,6 +282,14 @@ void Isochrone::ExpandForward(GraphReader& graphreader,
     *es = {EdgeSet::kTemporary, idx};
     edgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, newcost.cost, 0.0f, mode_, 0);
     adjacencylist_->add(idx);
+  }
+
+  // Handle transitions - expand from the end node of each transition
+  if (!from_transition && nodeinfo->transition_count() > 0) {
+    const NodeTransition* trans = tile->transition(nodeinfo->transition_index());
+    for (uint32_t i = 0; i < nodeinfo->transition_count(); ++i, ++trans) {
+      ExpandForward(graphreader, trans->endnode(), pred, pred_idx, true, localtime, seconds_of_week);
+    }
   }
 }
 
@@ -400,7 +393,8 @@ void Isochrone::ExpandReverse(GraphReader& graphreader,
   if (!from_transition) {
     uint32_t idx = pred.predecessor();
     float secs0 = (idx == kInvalidLabel) ? 0 : bdedgelabels_[idx].cost().secs;
-    UpdateIsoTile(pred, graphreader, nodeinfo->latlng(), secs0);
+    float secs1 = pred.cost().secs;
+    UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0, secs1);
   }
   if (!costing_->Allowed(nodeinfo)) {
     return;
@@ -421,22 +415,6 @@ void Isochrone::ExpandReverse(GraphReader& graphreader,
   EdgeStatusInfo* es = edgestatus_.GetPtr(edgeid, tile);
   const DirectedEdge* directededge = tile->directededge(edgeid);
   for (uint32_t i = 0; i < nodeinfo->edge_count(); ++i, ++directededge, ++edgeid, ++es) {
-    // Handle transition edges - expand from the end not of the transition
-    // unless this is called from a transition.
-    if (directededge->trans_up()) {
-      if (!from_transition) {
-        ExpandReverse(graphreader, directededge->endnode(), pred, pred_idx, opp_pred_edge, true,
-                      localtime, seconds_of_week);
-      }
-      continue;
-    } else if (directededge->trans_down()) {
-      if (!from_transition) {
-        ExpandReverse(graphreader, directededge->endnode(), pred, pred_idx, opp_pred_edge, true,
-                      localtime, seconds_of_week);
-      }
-      continue;
-    }
-
     // Skip this edge if permanently labeled (best path already found to this
     // directed edge), if no access for this mode, or if edge is a shortcut
     if (!(directededge->reverseaccess() & access_mode_) || directededge->is_shortcut() ||
@@ -500,6 +478,15 @@ void Isochrone::ExpandReverse(GraphReader& graphreader,
     bdedgelabels_.emplace_back(pred_idx, edgeid, oppedge, directededge, newcost, newcost.cost, 0.0f,
                                mode_, tc, false);
     adjacencylist_->add(idx);
+  }
+
+  // Handle transitions - expand from the end node of each transition
+  if (!from_transition && nodeinfo->transition_count() > 0) {
+    const NodeTransition* trans = tile->transition(nodeinfo->transition_index());
+    for (uint32_t i = 0; i < nodeinfo->transition_count(); ++i, ++trans) {
+      ExpandReverse(graphreader, trans->endnode(), pred, pred_idx, opp_pred_edge, true, localtime,
+                    seconds_of_week);
+    }
   }
 }
 
@@ -606,10 +593,21 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
   // Update the isotile
   uint32_t idx = pred.predecessor();
   float secs0 = (idx == kInvalidLabel) ? 0 : mmedgelabels_[idx].cost().secs;
-  UpdateIsoTile(pred, graphreader, nodeinfo->latlng(), secs0);
+  float secs1 = pred.cost().secs;
+  float wait_at_start = pred.wait_at_start();
+  float wait_at_stop = 0;
+  float travel_secs = pred.cost().secs - wait_at_start;
+
+  UpdateIsoTile(
+    pred,
+    graphreader,
+    tile->get_node_ll(node),
+    secs0 - wait_at_start,
+    secs1 - wait_at_start
+  );
 
   // Return true if the time interval has been met
-  if (pred.cost().secs > max_seconds_) {
+  if (travel_secs > max_seconds_) {
     LOG_DEBUG("Exceed time interval: edgelabel count = " + std::to_string(mmedgelabels_.size()));
     return true;
   }
@@ -693,24 +691,11 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
       continue;
     }
 
-    // Handle transition edges - expand from the end node of the transition
-    // (unless this is called from a transition).
-    if (directededge->trans_up()) {
-      if (!from_transition) {
-        ExpandForwardMM(graphreader, directededge->endnode(), pred, pred_idx, true, pc, tc,
-                        mode_costing);
-      }
-      continue;
-    } else if (directededge->trans_down()) {
-      if (!from_transition) {
-        ExpandForwardMM(graphreader, directededge->endnode(), pred, pred_idx, true, pc, tc,
-                        mode_costing);
-      }
-      continue;
-    }
-
-    // Reset cost and walking distance
+    // Reset cost, wait and walking distance
     Cost newcost = pred.cost();
+    float wait_at_start = pred.wait_at_start();
+    const TransitDeparture* departure = nullptr; // potential transit departure
+
     uint32_t walking_distance = pred.path_distance();
 
     // If this is a transit edge - get the next departure. Do not check if allowed by
@@ -729,12 +714,14 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
       }
 
       // Look up the next departure along this edge
-      const TransitDeparture* departure =
+      departure =
           tile->GetNextDeparture(directededge->lineid(), localtime, day_, dow_, date_before_tile_,
                                  tc->wheelchair(), tc->bicycle());
       if (departure) {
+        // Should explore departure(s)
         // Check if there has been a mode change
         mode_change = (mode_ == TravelMode::kPedestrian);
+        mode_ = TravelMode::kPublicTransit;
 
         // Update trip Id and block Id
         tripid = departure->tripid();
@@ -769,13 +756,34 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
           if (pred.transit_operator() > 0 && pred.transit_operator() != operator_id) {
             // TODO - create a configurable operator change penalty
             newcost.cost += 300;
-          } else {
-            newcost.cost += transfer_cost.cost;
           }
+          newcost.cost += transfer_cost.cost;
         }
 
+        if (!pred.has_transit()) {
+          // If first transit line remove waiting time into cost
+          // this should favor transit over direct pedestrian
+          // TODO: weight it down instead to prefer transit options that
+          // arrives earlier even if higher cost because slower
+          LOG_INFO("remove transit first waiting time from cost " +
+                   std::to_string(departure->departure_time() - localtime));
+          LOG_INFO("- locatime " + std::to_string(localtime));
+          LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
+          LOG_INFO("=> max 1h => " +
+                   std::to_string(std::min(static_cast<uint32_t>(3600),
+                                           departure->departure_time() - localtime)));
+
+          // Up to one hour ...
+          newcost.cost -=
+              std::min(static_cast<uint32_t>(3600), departure->departure_time() - localtime);
+          wait_at_start = departure->departure_time() - localtime;
+          wait_at_stop = wait_at_start; // First stop
+        } else {
+          wait_at_stop = departure->departure_time() - localtime; // Time waiting at this stop
+        }
+
+
         // Change mode and costing to transit. Add edge cost.
-        mode_ = TravelMode::kPublicTransit;
         newcost += tc->EdgeCost(directededge, departure, localtime);
       } else {
         // No matching departures found for this edge
@@ -839,34 +847,121 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
         walking_distance > max_transfer_distance_) {
       continue;
     }
+    bool do_continue = false;
 
-    // Continue if the time interval has been met. This bus or rail line goes beyond the max
-    // but need to consider others so we just continue here.
-    if (newcost.secs > max_seconds_) {
-      continue;
+    if(departure) {
+      LOG_INFO("expand and check next departure after " + std::to_string(departure->departure_time()));
     }
 
-    // Check if edge is temporarily labeled and this path has less cost. If
-    // less cost the predecessor is updated and the sort cost is decremented
-    // by the difference in real cost (A* heuristic doesn't change). Update
-    // trip Id and block Id.
-    if (es->set() == EdgeSet::kTemporary) {
-      MMEdgeLabel& lab = mmedgelabels_[es->index()];
-      if (newcost.cost < lab.cost().cost) {
-        float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
-        adjacencylist_->decrease(es->index(), newsortcost);
-        lab.Update(pred_idx, newcost, newsortcost, walking_distance, tripid, blockid);
+    // For each departure if transit
+    do {
+      // Continue if the time interval has been met. This bus or rail line goes beyond the max
+      // but need to consider others so we just continue here.
+      if ((newcost.secs - wait_at_start) > max_seconds_) {
+        do_continue = true;
+        continue;
       }
+
+      // Check if edge is temporarily labeled and this path has less cost. If
+      // less cost the predecessor is updated and the sort cost is decremented
+      // by the difference in real cost (A* heuristic doesn't change). Update
+      // trip Id and block Id.
+      if (es->set() == EdgeSet::kTemporary) {
+        MMEdgeLabel& lab = mmedgelabels_[es->index()];
+        if (newcost.cost < lab.cost().cost) {
+          float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
+          adjacencylist_->decrease(es->index(), newsortcost);
+          lab.Update(pred_idx, newcost, wait_at_start, wait_at_stop, newsortcost, walking_distance, tripid, blockid);
+        }
+      } else {
+        // Add edge label, add to the adjacency list and set edge status
+        uint32_t idx = mmedgelabels_.size();
+        *es = {EdgeSet::kTemporary, idx};
+        mmedgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_at_start, wait_at_stop, newcost.cost, 0.0f, mode_,
+                                  walking_distance, tripid, prior_stop, blockid, operator_id,
+                                  has_transit);
+        adjacencylist_->add(idx);
+      }
+
+
+      // Look up the next departures along this edge
+      if (departure) {
+
+        auto next_departure_time = departure->departure_time();
+        departure = tile->GetNextDeparture(directededge->lineid(), next_departure_time + 30, day_, dow_, date_before_tile_,
+                                  tc->wheelchair(), tc->bicycle());
+        // No more departure, break while loop
+        if(!departure) {
+          LOG_INFO("no more departure, break");
+          do_continue = true;
+          break;
+        }
+        
+        LOG_INFO("found next departure at " + std::to_string(departure->departure_time()));
+
+        // Update trip Id and block Id
+        tripid = departure->tripid();
+        blockid = departure->blockid();
+        has_transit = true;
+
+        // There is no cost to remain on the same trip or valid blockId
+        if (tripid == pred.tripid() || (blockid != 0 && blockid == pred.blockid())) {
+          // This departure is valid without any added cost. Operator Id
+          // is the same as the predecessor
+          operator_id = pred.transit_operator();
+        } else {
+          // Get the operator Id
+          operator_id = GetOperatorId(tile, departure->routeid(), operators_);
+
+          // Add transfer penalty and operator change penalty
+          if (pred.transit_operator() > 0 && pred.transit_operator() != operator_id) {
+            // TODO - create a configurable operator change penalty
+            newcost.cost += 300;
+          }
+          newcost.cost += transfer_cost.cost;
+        }
+
+        if (!pred.has_transit()) {
+          // If first transit line remove waiting time into cost
+          // this should favor transit over direct pedestrian
+          // TODO: weight it down instead to prefer transit options that
+          // arrives earlier even if higher cost because slower
+          LOG_INFO("remove transit first waiting time from cost " +
+                   std::to_string(departure->departure_time() - localtime));
+          LOG_INFO("- locatime " + std::to_string(localtime));
+          LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
+          LOG_INFO("=> max 1h => " +
+                   std::to_string(std::min(static_cast<uint32_t>(3600),
+                                           departure->departure_time() - localtime)));
+
+          // Up to one hour ...
+          newcost.cost -=
+              std::min(static_cast<uint32_t>(3600), departure->departure_time() - localtime);
+          wait_at_start = departure->departure_time() - localtime;
+          wait_at_stop = wait_at_start;
+        } else {
+          wait_at_stop = departure->departure_time() - localtime;
+        }
+
+
+        // Change mode and costing to transit. Add edge cost.
+        newcost += tc->EdgeCost(directededge, departure, localtime);
+      } else {
+        // Not a transit edge, just break
+        break;
+      }
+    } while(!do_continue);
+    if(do_continue) {
       continue;
     }
+  }
 
-    // Add edge label, add to the adjacency list and set edge status
-    uint32_t idx = mmedgelabels_.size();
-    *es = {EdgeSet::kTemporary, idx};
-    mmedgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, newcost.cost, 0.0f, mode_,
-                               walking_distance, tripid, prior_stop, blockid, operator_id,
-                               has_transit);
-    adjacencylist_->add(idx);
+  // Handle transitions - expand from the end node of each transition
+  if (!from_transition && nodeinfo->transition_count() > 0) {
+    const NodeTransition* trans = tile->transition(nodeinfo->transition_index());
+    for (uint32_t i = 0; i < nodeinfo->transition_count(); ++i, ++trans) {
+      ExpandForwardMM(graphreader, trans->endnode(), pred, pred_idx, true, pc, tc, mode_costing);
+    }
   }
   return false;
 }
@@ -880,25 +975,25 @@ std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeMultiModal(
     const TravelMode mode) {
   // For pedestrian costing - set flag allowing use of transit connections
   // Set pedestrian costing to use max distance. TODO - need for other modes
-  const auto& pc = mode_costing[static_cast<uint8_t>(TravelMode::kPedestrian)];
+  const auto& pc = mode_costing[static_cast<uint32_t>(TravelMode::kPedestrian)];
   pc->SetAllowTransitConnections(true);
   pc->UseMaxMultiModalDistance();
 
   // Set the mode from the origin
   mode_ = mode;
-  const auto& tc = mode_costing[static_cast<uint8_t>(TravelMode::kPublicTransit)];
+  const auto& tc = mode_costing[static_cast<uint32_t>(TravelMode::kPublicTransit)];
 
   // Get maximum transfer distance (TODO - want to allow unlimited walking once
   // you get off the transit stop...)
-  max_transfer_distance_ = 99999.0f; // costing->GetMaxTransferDistanceMM();
+  max_transfer_distance_ = pc->GetMaxTransferDistanceMM();
 
   // Initialize and create the isotile
   max_seconds_ = max_minutes * 60;
-  InitializeMultiModal(mode_costing[static_cast<uint8_t>(mode_)]->UnitSize());
+  InitializeMultiModal(mode_costing[static_cast<uint32_t>(mode_)]->UnitSize());
   ConstructIsoTile(true, max_minutes, origin_locations);
 
   // Set the origin locations.
-  SetOriginLocationsMM(graphreader, origin_locations, mode_costing[static_cast<uint8_t>(mode_)]);
+  SetOriginLocationsMM(graphreader, origin_locations, mode_costing[static_cast<uint32_t>(mode_)]);
 
   // For now the date_time must be set on the origin.
   if (!origin_locations.Get(0).has_date_time()) {
@@ -959,7 +1054,8 @@ std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeMultiModal(
 void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
                               GraphReader& graphreader,
                               const PointLL& ll,
-                              float secs0) {
+                              float secs0,
+                              float secs1) {
   // Skip if the opposing edge has already been settled.
   const GraphTile* t2;
   GraphId opp = graphreader.GetOpposingEdgeId(pred.edgeid(), t2);
@@ -978,16 +1074,12 @@ void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
     return;
   }
 
-  // Get the time at the end node of the predecessor
-  // TODO - do we need partial shape from origin location to end of edge?
-  float secs1 = pred.cost().secs;
-
   // For short edges just mark the segment between the 2 nodes of the edge. This
   // avoid getting the shape for short edges.
   if (edge->length() < shape_interval_ * 1.5f) {
     // Mark tiles that intersect the segment. Optimize this to avoid calling the Intersect
     // method unless more than 2 tiles are crossed by the segment.
-    PointLL ll0 = tile->node(t2->directededge(opp)->endnode())->latlng();
+    PointLL ll0 = tile->get_node_ll(t2->directededge(opp)->endnode());
     auto tile1 = isotile_->TileId(ll0);
     auto tile2 = isotile_->TileId(ll);
     if (tile1 == tile2) {
@@ -1074,8 +1166,13 @@ void Isochrone::SetOriginLocations(
         continue;
       }
 
-      // Get the directed edge
+      // Disallow any user avoid edges if the avoid location is ahead of the origin along the edge
       GraphId edgeid(edge.graph_id());
+      if (costing_->AvoidAsOriginEdge(edgeid, edge.percent_along())) {
+        continue;
+      }
+
+      // Get the directed edge
       const GraphTile* tile = graphreader.GetGraphTile(edgeid);
       const DirectedEdge* directededge = tile->directededge(edgeid);
 
@@ -1145,8 +1242,13 @@ void Isochrone::SetOriginLocationsMM(
         continue;
       }
 
-      // Get the directed edge
+      // Disallow any user avoid edges if the avoid location is ahead of the origin along the edge
       GraphId edgeid(edge.graph_id());
+      if (costing->AvoidAsOriginEdge(edgeid, edge.percent_along())) {
+        continue;
+      }
+
+      // Get the directed edge
       const GraphTile* tile = graphreader.GetGraphTile(edgeid);
       const DirectedEdge* directededge = tile->directededge(edgeid);
 
@@ -1174,7 +1276,7 @@ void Isochrone::SetOriginLocationsMM(
       uint32_t idx = mmedgelabels_.size();
       uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.percent_along()));
       edgestatus_.Set(edgeid, EdgeSet::kTemporary, idx, tile);
-      MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, cost.cost, 0.0f, mode_, d, 0,
+      MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, 0.0f, cost.cost, 0.0f, mode_, d, 0,
                              GraphId(), 0, 0, false);
 
       // Set the origin flag

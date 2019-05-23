@@ -49,8 +49,8 @@ constexpr uint32_t kDefaultMaxGradeWheelchair = 12; // Conservative for now...
 // Other defaults (not dependent on type)
 constexpr uint8_t kDefaultMaxHikingDifficulty = 1; // T1 (kHiking)
 constexpr float kModeFactor = 1.5f;                // Favor this mode?
-constexpr float kDefaultWalkwayFactor = 0.9f;      // Slightly favor walkways
-constexpr float kDefaultSideWalkFactor = 0.95f;    // Slightly favor sidewalks
+constexpr float kDefaultWalkwayFactor = 1.0f;      // Neutral value for walkways
+constexpr float kDefaultSideWalkFactor = 1.0f;     // Neutral value for sidewalks
 constexpr float kDefaultAlleyFactor = 2.0f;        // Avoid alleys
 constexpr float kDefaultDrivewayFactor = 5.0f;     // Avoid driveways
 constexpr float kDefaultUseFerry = 1.0f;
@@ -319,8 +319,23 @@ public:
     // On first pass use the walking speed plus a small factor to account for
     // favoring walkways, on the second pass use the the maximum ferry speed.
     if (pass_ == 0) {
-      return (kSecPerHour * 0.001f) /
-             (kDefaultSpeedFoot * std::min(walkway_factor_, sidewalk_factor_));
+
+      // Determine factor based on all of the factor options
+      float factor = 1.f;
+      if (walkway_factor_ < 1.f) {
+        factor *= walkway_factor_;
+      }
+      if (sidewalk_factor_ < 1.f) {
+        factor *= sidewalk_factor_;
+      }
+      if (alley_factor_ < 1.f) {
+        factor *= alley_factor_;
+      }
+      if (driveway_factor_ < 1.f) {
+        factor *= driveway_factor_;
+      }
+
+      return (speedfactor_ * factor);
     } else {
       return (kSecPerHour * 0.001f) / static_cast<float>(kMaxFerrySpeedKph);
     }
@@ -346,7 +361,7 @@ public:
     auto access_mask = access_mask_;
     auto max_sac_scale = max_hiking_difficulty_;
     return [access_mask, max_sac_scale](const baldr::DirectedEdge* edge) {
-      return !(edge->IsTransition() || edge->is_shortcut() || edge->use() >= Use::kRail ||
+      return !(edge->is_shortcut() || edge->use() >= Use::kRail ||
                edge->sac_scale() > max_sac_scale || !(edge->forwardaccess() & access_mask));
     };
   }
@@ -439,8 +454,7 @@ public:
       c.cost += alley_penalty_;
     }
     if (!edge->link() && edge->use() != Use::kEgressConnection &&
-        edge->use() != Use::kPlatformConnection &&
-        !node->name_consistency(idx, edge->localedgeidx())) {
+        edge->use() != Use::kPlatformConnection && !edge->name_consistency(idx)) {
       c.cost += maneuver_penalty_;
     }
     return c;
@@ -485,8 +499,7 @@ public:
       c.cost += alley_penalty_;
     }
     if (!edge->link() && edge->use() != Use::kEgressConnection &&
-        edge->use() != Use::kPlatformConnection &&
-        !node->name_consistency(idx, edge->localedgeidx())) {
+        edge->use() != Use::kPlatformConnection && !edge->name_consistency(idx)) {
       c.cost += maneuver_penalty_;
     }
     return c;
@@ -652,13 +665,13 @@ Cost PedestrianCost::EdgeCost(const baldr::DirectedEdge* edge, const uint32_t sp
 
   // TODO - consider using an array of "use factors" to avoid this conditional
   float factor = 1.0f + kSacScaleCostFactor[static_cast<uint8_t>(edge->sac_scale())];
-  if (edge->use() == Use::kFootway) {
+  if (edge->use() == Use::kFootway || edge->use() == Use::kSidewalk) {
     factor *= walkway_factor_;
   } else if (edge->use() == Use::kAlley) {
     factor *= alley_factor_;
   } else if (edge->use() == Use::kDriveway) {
     factor *= driveway_factor_;
-  } else if (edge->use() == Use::kSidewalk) {
+  } else if (edge->sidewalk_left() || edge->sidewalk_right()) {
     factor *= sidewalk_factor_;
   } else if (edge->roundabout()) {
     factor *= kRoundaboutFactor;
@@ -938,7 +951,7 @@ make_distributor_from_range(const ranged_default_t<uint32_t>& range) {
 void testPedestrianCostParams() {
   constexpr unsigned testIterations = 250;
   constexpr unsigned seed = 0;
-  std::default_random_engine generator(seed);
+  std::mt19937 generator(seed);
   std::shared_ptr<std::uniform_real_distribution<float>> real_distributor;
   std::shared_ptr<std::uniform_int_distribution<uint32_t>> int_distributor;
   std::shared_ptr<TestPedestrianCost> ctorTester;

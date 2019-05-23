@@ -94,7 +94,7 @@ json::MapPtr to_feature(const std::pair<size_t, polygon_t>& boundary, const std:
 template <class T>
 std::string to_feature_collection(const std::unordered_map<size_t, polygon_t>& boundaries,
                                   const std::multimap<size_t, size_t, T>& arities) {
-  std::default_random_engine generator;
+  std::mt19937 generator;
   std::uniform_int_distribution<int> distribution(64, 192);
   auto features = json::array({});
   for (const auto& arity : arities) {
@@ -268,19 +268,22 @@ std::unordered_set<size_t> connectivity_map_t::get_colors(uint32_t hierarchy_lev
     return result;
   }
   const auto& tiles = TileHierarchy::levels().find(hierarchy_level)->second.tiles;
-  for (const auto& edge : location.edges) {
-    // Get a list of tiles required within the radius of the projected point
-    const auto& ll = edge.projected;
-    DistanceApproximator approximator(ll);
-    float latdeg = (radius / kMetersPerDegreeLat);
-    float lngdeg = (radius / DistanceApproximator::MetersPerLngDegree(ll.lat()));
-    AABB2<PointLL> bbox(Point2(ll.lng() - lngdeg, ll.lat() - latdeg),
-                        Point2(ll.lng() + lngdeg, ll.lat() + latdeg));
-    std::vector<int32_t> tilelist = tiles.TileList(bbox);
-    for (auto& id : tilelist) {
-      auto color = level->second.find(id);
-      if (color != level->second.cend()) {
-        result.emplace(color->second);
+  std::vector<const decltype(location.edges)*> edge_sets{&location.edges, &location.filtered_edges};
+  for (const auto* edges : edge_sets) {
+    for (const auto& edge : *edges) {
+      // Get a list of tiles required within the radius of the projected point
+      const auto& ll = edge.projected;
+      DistanceApproximator approximator(ll);
+      float latdeg = (radius / kMetersPerDegreeLat);
+      float lngdeg = (radius / DistanceApproximator::MetersPerLngDegree(ll.lat()));
+      AABB2<PointLL> bbox(Point2(ll.lng() - lngdeg, ll.lat() - latdeg),
+                          Point2(ll.lng() + lngdeg, ll.lat() + latdeg));
+      std::vector<int32_t> tilelist = tiles.TileList(bbox);
+      for (auto& id : tilelist) {
+        auto color = level->second.find(id);
+        if (color != level->second.cend()) {
+          result.emplace(color->second);
+        }
       }
     }
   }

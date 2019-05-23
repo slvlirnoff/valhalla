@@ -42,11 +42,13 @@ public:
 
   const TripDirections_Maneuver_Type& type() const;
   void set_type(const TripDirections_Maneuver_Type& type);
+  bool IsDestinationType() const;
 
   const StreetNames& street_names() const;
-  void set_street_names(const std::vector<std::string>& names);
+  void set_street_names(const std::vector<std::pair<std::string, bool>>& names);
   void set_street_names(std::unique_ptr<StreetNames>&& street_names);
   bool HasStreetNames() const;
+  void ClearStreetNames();
 
   bool HasSameNames(const Maneuver* other_maneuver,
                     bool allow_begin_intersecting_edge_name_consistency = false) const;
@@ -55,14 +57,16 @@ public:
                        bool allow_begin_intersecting_edge_name_consistency = false) const;
 
   const StreetNames& begin_street_names() const;
-  void set_begin_street_names(const std::vector<std::string>& names);
+  void set_begin_street_names(const std::vector<std::pair<std::string, bool>>& names);
   void set_begin_street_names(std::unique_ptr<StreetNames>&& begin_street_names);
   bool HasBeginStreetNames() const;
+  void ClearBeginStreetNames();
 
   const StreetNames& cross_street_names() const;
-  void set_cross_street_names(const std::vector<std::string>& names);
+  void set_cross_street_names(const std::vector<std::pair<std::string, bool>>& names);
   void set_cross_street_names(std::unique_ptr<StreetNames>&& cross_street_names);
   bool HasCrossStreetNames() const;
+  void ClearCrossStreetNames();
 
   const std::string& instruction() const;
   void set_instruction(const std::string& instruction);
@@ -194,6 +198,15 @@ public:
   bool verbal_multi_cue() const;
   void set_verbal_multi_cue(bool verbal_multi_cue);
 
+  bool to_stay_on() const;
+  void set_to_stay_on(bool to_stay_on);
+
+  const StreetNames& roundabout_exit_street_names() const;
+  void set_roundabout_exit_street_names(const std::vector<std::pair<std::string, bool>>& names);
+  void set_roundabout_exit_street_names(std::unique_ptr<StreetNames>&& roundabout_exit_street_names);
+  bool HasRoundaboutExitStreetNames() const;
+  void ClearRoundaboutExitStreetNames();
+
   TripPath_TravelMode travel_mode() const;
   void set_travel_mode(TripPath_TravelMode travel_mode);
 
@@ -310,6 +323,8 @@ protected:
   bool unnamed_cycleway_;
   bool unnamed_mountain_bike_trail_;
   bool verbal_multi_cue_;
+  bool to_stay_on_;
+  std::unique_ptr<StreetNames> roundabout_exit_street_names_;
 
   ////////////////////////////////////////////////////////////////////////////
   // Transit support

@@ -34,6 +34,7 @@ constexpr float kDefaultCountryCrossingPenalty = 0.0f;   // Seconds
 
 // Other options
 constexpr float kDefaultLowClassPenalty = 30.0f; // Seconds
+constexpr float kDefaultUseTolls = 0.5f;         // Factor between 0 and 1
 
 // Default turn costs
 constexpr float kTCStraight = 0.5f;
@@ -95,6 +96,7 @@ constexpr ranged_default_t<float> kTruckAxleLoadRange{0, kDefaultTruckAxleLoad, 
 constexpr ranged_default_t<float> kTruckHeightRange{0, kDefaultTruckHeight, 10.0f};
 constexpr ranged_default_t<float> kTruckWidthRange{0, kDefaultTruckWidth, 10.0f};
 constexpr ranged_default_t<float> kTruckLengthRange{0, kDefaultTruckLength, 50.0f};
+constexpr ranged_default_t<float> kUseTollsRange{0, kDefaultUseTolls, 1.0f};
 
 } // namespace
 
@@ -254,7 +256,7 @@ public:
   virtual const EdgeFilter GetEdgeFilter() const {
     // Throw back a lambda that checks the access for this type of costing
     return [](const baldr::DirectedEdge* edge) {
-      if (edge->IsTransition() || edge->is_shortcut() || !(edge->forwardaccess() & kTruckAccess)) {
+      if (edge->is_shortcut() || !(edge->forwardaccess() & kTruckAccess)) {
         return 0.0f;
       } else {
         // TODO - use classification/use to alter the factor
@@ -277,6 +279,7 @@ public:
   VehicleType type_; // Vehicle type: tractor trailer
   float speedfactor_[kMaxSpeedKph + 1];
   float density_factor_[16]; // Density factor
+  float toll_factor_;        // Factor applied when road has a toll
   float low_class_penalty_;  // Penalty (seconds) to go to residential or service road
 
   // Vehicle attributes (used for special restrictions and costing)
@@ -321,6 +324,15 @@ TruckCost::TruckCost(const odin::Costing costing, const odin::DirectionsOptions&
   for (uint32_t s = 1; s <= kMaxSpeedKph; s++) {
     speedfactor_[s] = (kSecPerHour * 0.001f) / static_cast<float>(s);
   }
+
+  // Preference to use toll roads (separate from toll booth penalty). Sets a toll
+  // factor. A toll factor of 0 would indicate no adjustment to weighting for toll roads.
+  // use_tolls = 1 would reduce weighting slightly (a negative delta) while
+  // use_tolls = 0 would penalize (positive delta to weighting factor).
+  float use_tolls = costing_options.use_tolls();
+  toll_factor_ = use_tolls < 0.5f ? (2.0f - 4 * use_tolls) : // ranges from 2 to 0
+                     (0.5f - use_tolls) * 0.03f;             // ranges from 0 to -0.15
+
   for (uint32_t d = 0; d < 16; d++) {
     density_factor_[d] = 0.85f + (d * 0.025f);
   }
@@ -507,6 +519,10 @@ Cost TruckCost::EdgeCost(const DirectedEdge* edge, const uint32_t speed) const {
     factor *= kTruckRouteFactor;
   }
 
+  if (edge->toll()) {
+    factor += toll_factor_;
+  }
+
   // Use the lower or truck speed (ir present) and speed
   uint32_t s = (edge->truck_speed() > 0) ? std::min(edge->truck_speed(), speed) : speed;
   float sec = edge->length() * speedfactor_[s];
@@ -535,7 +551,7 @@ Cost TruckCost::TransitionCost(const baldr::DirectedEdge* edge,
     if (edge->edge_to_right(idx) && edge->edge_to_left(idx)) {
       turn_cost = kTCCrossing;
     } else {
-      turn_cost = (edge->drive_on_right())
+      turn_cost = (node->drive_on_right())
                       ? kRightSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))]
                       : kLeftSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))];
     }
@@ -571,7 +587,7 @@ Cost TruckCost::TransitionCostReverse(const uint32_t idx,
     if (edge->edge_to_right(idx) && edge->edge_to_left(idx)) {
       turn_cost = kTCCrossing;
     } else {
-      turn_cost = (edge->drive_on_right())
+      turn_cost = (node->drive_on_right())
                       ? kRightSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))]
                       : kLeftSideTurnCosts[static_cast<uint32_t>(edge->turntype(idx))];
     }
@@ -684,6 +700,11 @@ void ParseTruckCostOptions(const rapidjson::Document& doc,
         kTruckLengthRange(rapidjson::get_optional<float>(*json_costing_options, "/length")
                               .get_value_or(kDefaultTruckLength)));
 
+    // use_tolls
+    pbf_costing_options->set_use_tolls(
+        kUseTollsRange(rapidjson::get_optional<float>(*json_costing_options, "/use_tolls")
+                           .get_value_or(kDefaultUseTolls)));
+
   } else {
     // Set pbf values to defaults
     pbf_costing_options->set_maneuver_penalty(kDefaultManeuverPenalty);
@@ -702,6 +723,7 @@ void ParseTruckCostOptions(const rapidjson::Document& doc,
     pbf_costing_options->set_height(kDefaultTruckHeight);
     pbf_costing_options->set_width(kDefaultTruckWidth);
     pbf_costing_options->set_length(kDefaultTruckLength);
+    pbf_costing_options->set_use_tolls(kDefaultUseTolls);
   }
 }
 
@@ -752,7 +774,7 @@ make_distributor_from_range(const ranged_default_t<float>& range) {
 void testTruckCostParams() {
   constexpr unsigned testIterations = 250;
   constexpr unsigned seed = 0;
-  std::default_random_engine generator(seed);
+  std::mt19937 generator(seed);
   std::shared_ptr<std::uniform_real_distribution<float>> distributor;
   std::shared_ptr<TestTruckCost> ctorTester;
 

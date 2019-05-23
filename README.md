@@ -14,9 +14,8 @@
 
 
 ### NOTICE
-We are working on updates to the Valhalla graph tile format that will be incompatible with the current version of Valhalla. Valhalla tiles have been stable for nearly 2 years and we are working on changes designed to make the tile data more efficient and flexible. This work is being done on a branch, so master is stable while this development occurs. We will tag a "last good release" of Valhalla version 2.x prior to merging the tile changes and creating Valhalla 3.0. We will create issues with the tag "V3Tiles" that describe the tile changes - so feel free to follow along and comment.
-
-One notable change is that Valhalla will **no longer support OSMLR** within Valhalla 3 tiles.
+Valhalla 3.0 is now available!
+This release (current master) makes changes to the Valhalla graph tile format. These tile changes are designed to make the tile data more efficient and flexible. However, these changes make Valhalla 3.0 incompatible with data from Valhalla 2.x. Also, any data built using Valhalla 3.0 will not be usable with Valhalla 2.x. See the [CHANGELOG](CHANGELOG.md) to get a brief description of the updates.
 
 ------------
 Valhalla is an open source routing engine and accompanying libraries for use with OpenStreetMap data. Valhalla also includes tools like time+distance matrix computation, isochrones, elevation sampling, map matching and tour optimization (Travelling Salesman).
@@ -24,9 +23,9 @@ Valhalla is an open source routing engine and accompanying libraries for use wit
 Build Status
 ------------
 
-| Linux | Code Coverage |
-| ----- | ------------- |
-| [![Circle CI](https://circleci.com/gh/valhalla/valhalla.svg?style=svg)](https://circleci.com/gh/valhalla/valhalla) | [![codecov](https://codecov.io/gh/valhalla/valhalla/branch/master/graph/badge.svg)](https://codecov.io/gh/valhalla/valhalla) |
+| Linux/MacOs | Windows | Code Coverage |
+| ----------- | ------- | ------------- |
+| [![Circle CI](https://circleci.com/gh/valhalla/valhalla.svg?style=svg)](https://circleci.com/gh/valhalla/valhalla) | [![Build status](https://ci.appveyor.com/api/projects/status/6w7emulgcjweu457/branch/master?svg=true)](https://ci.appveyor.com/project/kevinkreiser/valhalla/branch/master) | [![codecov](https://codecov.io/gh/valhalla/valhalla/branch/master/graph/badge.svg)](https://codecov.io/gh/valhalla/valhalla) |
 
 
 
@@ -68,7 +67,7 @@ The Valhalla organization is comprised of several library modules each responsib
 Documentation
 --------
 
-Technical documentation for the various components of the library can be found here: [docs](docs). Service API documentation as well as links to a variety of technical descriptions are provided within the [valhalla-docs](https://github.com/valhalla/valhalla-docs) repository.
+Documentation is stored in the `docs/` folder in this GitHub repository. It can be viewed at [valhalla.readthedocs.io](https://valhalla.readthedocs.io/).
 
 Get Valhalla from Personal Package Archive (PPA)
 ------------------------------------------------
@@ -103,6 +102,8 @@ curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | 
 nvm use install 10 && nvm use 10 # must use node 8.11.1 and up because of N-API
 npm install --ignore-scripts
 ```
+
+For instructions on installing Valhalla on Ubuntu 18.04.x see this [script](scripts/Ubuntu_Bionic_Install.sh).
 
 To install on macOS, you need to install its dependencies with [Homebrew](http://brew.sh):
 

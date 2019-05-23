@@ -62,33 +62,6 @@ public:
   }
 
   /**
-   * Constructor given a predecessor edge label. This is used for hierarchy
-   * transitions where the attributes at the predecessor are needed (rather
-   * than attributes from the directed edge).
-   * TODO - remove when all path algorithms avoid adding transition edges to
-   * the label set.
-   * @param predecessor  Index into the edge label list for the predecessor
-   *                     directed edge in the shortest path.
-   * @param edgeid       Directed edge id.
-   * @param endnode      End node of the transition edge.
-   * @param pred         Predecessor edge label (to copy attributes from)
-   */
-  EdgeLabel(const uint32_t predecessor,
-            const baldr::GraphId& edgeid,
-            const baldr::GraphId& endnode,
-            const EdgeLabel& pred) {
-    *this = pred;
-    predecessor_ = predecessor;
-    edgeid_ = edgeid;
-    endnode_ = endnode;
-    origin_ = 0;
-
-    // Set the use so we know this is a transition edge. For now we only need to
-    // know it is a transition edge so we can skip it in complex restrictions.
-    use_ = static_cast<uint32_t>(baldr::Use::kTransitionUp);
-  }
-
-  /**
    * Update an existing edge label with new predecessor and cost information.
    * The mode, edge Id, and end node remain the same.
    * @param predecessor Predecessor directed edge in the shortest path.
@@ -577,6 +550,8 @@ public:
               const baldr::GraphId& edgeid,
               const baldr::DirectedEdge* edge,
               const sif::Cost& cost,
+              const float wait_at_start, // Waiting time before first transit leg
+              const float wait_at_stop, // Waiting time before this edge label
               const float sortcost,
               const float dist,
               const sif::TravelMode mode,
@@ -588,34 +563,8 @@ public:
               const bool has_transit)
       : EdgeLabel(predecessor, edgeid, edge, cost, sortcost, dist, mode, path_distance),
         prior_stopid_(prior_stopid), tripid_(tripid), blockid_(blockid),
-        transit_operator_(transit_operator), has_transit_(has_transit) {
-  }
-
-  /**
-   * Constructor given a predecessor edge label. This is used for hierarchy
-   * transitions where the attributes at the predecessor are needed (rather
-   * than attributes from the directed edge).
-   * TODO - remove when all path algorithms avoid adding transition edges to
-   * the label set.
-   * @param predecessor  Index into the edge label list for the predecessor
-   *                     directed edge in the shortest path.
-   * @param edgeid       Directed edge id.
-   * @param endnode      End node of the transition edge.
-   * @param pred         Predecessor edge label (to copy attributes from)
-   */
-  MMEdgeLabel(const uint32_t predecessor,
-              const baldr::GraphId& edgeid,
-              const baldr::GraphId& endnode,
-              const MMEdgeLabel& pred) {
-    *this = pred;
-    predecessor_ = predecessor;
-    edgeid_ = edgeid;
-    endnode_ = endnode;
-    origin_ = 0;
-
-    // Set the use so we know this is a transition edge. For now we only need to
-    // know it is a transition edge so we can skip it in complex restrictions.
-    use_ = static_cast<uint32_t>(baldr::Use::kTransitionUp);
+        transit_operator_(transit_operator), has_transit_(has_transit),
+        wait_at_start_(wait_at_start), wait_at_stop_(wait_at_stop) {
   }
 
   /**
@@ -632,12 +581,16 @@ public:
    */
   void Update(const uint32_t predecessor,
               const sif::Cost& cost,
+              const float wait_at_start, // Waiting time before first transit leg
+              const float wait_at_stop, // Waiting time before first transit leg
               const float sortcost,
               const uint32_t path_distance,
               const uint32_t tripid,
               const uint32_t blockid) {
     predecessor_ = predecessor;
     cost_ = cost;
+    wait_at_start_ = wait_at_start;
+    wait_at_stop_ = wait_at_stop;
     sortcost_ = sortcost;
     path_distance_ = path_distance;
     tripid_ = tripid;
@@ -684,6 +637,22 @@ public:
     return has_transit_;
   }
 
+  /**
+   * If has any transit been taken up to this point the time waiting for it at the first station.
+   * @return  Return the time in seconds waiting for the first transit segment
+   */
+  float wait_at_start() const {
+    return wait_at_start_;
+  }
+
+  /**
+   * If has any transit been taken up to this point the time waiting for it at the first station.
+   * @return  Return the time in seconds waiting for the first transit segment
+   */
+  float wait_at_stop() const {
+    return wait_at_stop_;
+  }
+
 protected:
   // GraphId of the predecessor transit stop.
   baldr::GraphId prior_stopid_;
@@ -697,6 +666,9 @@ protected:
   uint32_t blockid_ : 21; // Really only needs 20 bits
   uint32_t transit_operator_ : 10;
   uint32_t has_transit_ : 1;
+  // The waiting time
+  float wait_at_start_;
+  float wait_at_stop_;
 };
 
 } // namespace sif

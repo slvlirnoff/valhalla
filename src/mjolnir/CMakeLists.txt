@@ -32,16 +32,17 @@ set(sources
   directededgebuilder.cc
   graphtilebuilder.cc
   edgeinfobuilder.cc
-  uniquenames.cc
+  elevationbuilder.cc
   ferry_connections.cc
   graphbuilder.cc
   graphenhancer.cc
+  graphfilter.cc
   graphvalidator.cc
   hierarchybuilder.cc
   linkclassification.cc
   luatagtransform.cc
   node_expander.cc
-  osmaccess.cc
+  osmdata.cc
   osmpbfparser.cc
   osmaccessrestriction.cc
   osmrestriction.cc
