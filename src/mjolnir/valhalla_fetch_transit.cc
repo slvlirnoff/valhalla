@@ -1,3 +1,4 @@
+
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -89,7 +90,7 @@ struct pt_curler_t {
       long http_code = 0;
       std::string log_extra = "Couldn't fetch url ";
       // can we fetch this url
-      LOG_DEBUG(url);
+      LOG_INFO(url);
       if (curl_easy_perform(connection.get()) == CURLE_OK) {
         curl_easy_getinfo(connection.get(), CURLINFO_RESPONSE_CODE, &http_code);
         log_extra = std::to_string(http_code) + "'d ";
@@ -206,6 +207,8 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         LOG_WARN("Skipping non-polygonal feature: " + feature.second.get_value<std::string>());
         continue;
       }
+
+      // 5.956649780273437,46.222127524002886,7.24273681640625,46.4851559004343
       // grab the tile row and column ranges for the max box around the polygon
       float min_x = 180, max_x = -180, min_y = 90, max_y = -90;
       for (const auto& coord : feature.second.get_child("geometry.coordinates").front().second) {
@@ -1014,7 +1017,7 @@ void fetch_tiles(const ptree& pt,
       dangling.emplace_back(current);
     }
 
-    // save the last tile
+    // save the last tile (.pbf) which has the most routes saved in it
     if (tile.stop_pairs_size()) {
       transit_tile = prefix;
       write_pbf(tile, transit_tile.string());

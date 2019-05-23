@@ -624,7 +624,10 @@ int main(int argc, char* argv[]) {
     try {
       trip_path = PathTest(reader, origin, dest, pathalgorithm, mode_costing, mode, data, multi_run,
                            iterations, using_astar, using_bd, match_test, routetype);
-    } catch (std::runtime_error& rte) { LOG_ERROR("trip_path not found"); }
+    } catch (std::runtime_error& rte) { 
+    std::cerr << rte.what();
+    LOG_ERROR("trip_path not found");
+}
 
     // If successful get directions
     if (trip_path.node().size() > 0) {
