@@ -429,12 +429,12 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           LOG_INFO("- locatime " + std::to_string(localtime));
           LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
           LOG_INFO("=> max 10 mn => " +
-                   std::to_string(std::min(static_cast<uint32_t>(3600),
+                   std::to_string(std::min(static_cast<uint32_t>(600),
                                            departure->departure_time() - localtime)));
 
           // Up to one hour ...
           newcost.cost -=
-              std::min(static_cast<uint32_t>(3600), departure->departure_time() - localtime);
+              std::min(static_cast<uint32_t>(600), departure->departure_time() - localtime);
           wait_at_start = departure->departure_time() - localtime;
           wait_at_stop = wait_at_start;
         } else {
