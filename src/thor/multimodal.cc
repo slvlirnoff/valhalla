@@ -375,8 +375,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
       // Look up the next departure along this edge
       const TransitDeparture* departure =
           tile->GetNextDeparture(directededge->lineid(), localtime, day_, dow_, date_before_tile_,
-                                 tc->wheelchair(), tc->bicycle());
-
+                                tc->wheelchair(), tc->bicycle());
       if (departure) {
         // Check if there has been a mode change
         mode_change = (mode_ == TravelMode::kPedestrian);
@@ -384,7 +383,6 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
         // Update trip Id and block Id
         tripid = departure->tripid();
         blockid = departure->blockid();
-        has_transit = true;
 
         // There is no cost to remain on the same trip or valid blockId
         if (tripid == pred.tripid() || (blockid != 0 && blockid == pred.blockid())) {
@@ -443,6 +441,7 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
 
         // Change mode and costing to transit. Add edge cost.
         mode_ = TravelMode::kPublicTransit;
+        has_transit = true;
         newcost += tc->EdgeCost(directededge, departure, localtime);
       } else {
         // No matching departures found for this edge
