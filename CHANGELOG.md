@@ -1,4 +1,14 @@
-## Release Date: UNRELEASED Valhalla 3.0.3
+## Release Date: 2019-05-31 Valhalla 3.0.4
+* **Bug Fix**
+   * FIXED: Improved logic to decide between bear vs. continue [#1798](https://github.com/valhalla/valhalla/pull/1798)
+   * FIXED: Bicycle costing allows use of roads with all surface values, but with a penalty based on bicycle type. However, the edge filter totally disallows bad surfaces for some bicycle types, creating situations where reroutes fail if a rider uses a road with a poor surface. [#1800](https://github.com/valhalla/valhalla/pull/1800)
+   * FIXED: Moved complex restrictions building to before validate. [#1805](https://github.com/valhalla/valhalla/pull/1805)
+   * FIXED: Fix bicycle edge filter whan avoid_bad_surfaces = 1.0 [#1806](https://github.com/valhalla/valhalla/pull/1806)
+   * FIXED: Replace the EnhancedTripPath class inheritance with aggregation [#1807](https://github.com/valhalla/valhalla/pull/1807)
+   * FIXED: Replace the old timezone shape zip file every time valhalla_build_timezones is ran [#1817](https://github.com/valhalla/valhalla/pull/1817)
+   * FIXED: Don't use island snapped edge candidates (from disconnected components or low reach edges) when we rejected other high reachability edges that were closer [#1835](https://github.com/valhalla/valhalla/pull/1835)
+
+## Release Date: 2019-05-08 Valhalla 3.0.3
 * **Bug Fix**
    * FIXED: Fixed a rare loop condition in route matcher (edge walking to match a trace).
    * FIXED: Fixed VACUUM ANALYZE syntax issue.  [#1704](https://github.com/valhalla/valhalla/pull/1704)
@@ -20,6 +30,7 @@
    * FIXED: GraphReader::AreEdgesConnected update.  If transition count == 0 return false and do not call transition function. [#1786](https://github.com/valhalla/valhalla/pull/1786)
    * FIXED: Only edge candidates that were used in the path are send to serializer: [1788](https://github.com/valhalla/valhalla/pull/1788)
    * FIXED: Added logic to prevent the removal of a destination maneuver when ending on an internal edge [#1792](https://github.com/valhalla/valhalla/pull/1792)
+   * FIXED: Fixed instructions when starting on an internal edge [#1796](https://github.com/valhalla/valhalla/pull/1796)
 
 * **Enhancement**
    * Add the ability to run valhalla_build_tiles in stages. Specify the begin_stage and end_stage as command line options. Also cleans up temporary files as the last stage in the pipeline.

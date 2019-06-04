@@ -12,6 +12,8 @@ It is important to note that all service requests should be *POST* because `shap
 
 The `trace_route` action takes the costing mode and a list of latitude,longitude coordinates, for example, from a GPS trace, to turn them into a route with the shape snapped to the road network and a set of guidance directions. You might use this to take a GPS trace from a bike route into a set of narrative instructions so you can re-create your trip or share it with others.
 
+By default a single trip leg is returned in a trace_route response. You can split the route response into multiple legs by setting `"type":"break"` on any of the input shape objects in the `shape` parameter of your query. The first and last locations should always have type break. Note that setting breaks is not supported for encoded_polyline input, and is only supported for `map_snap` mode of the trace_route endpoint.
+
 ## Trace attributes action
 
 The `trace_attributes` action takes the costing mode and a GPS trace or latitude,longitude positions and returns detailed attribution along the portion of the route. This includes details for each section of road along the path, as well as any intersections along the path. Some of the use cases for `trace_attributes` include getting:
@@ -147,7 +149,7 @@ The `trace_attributes` results contains a list of edges and, optionally, the fol
 | `edges` | List of edges associated with input shape. See the list of [edge items](#edge-items) for details. |
 | `osm_changeset` | Identifier of the OpenStreetMap base data version. |
 | `admins` | List of the administrative codes and names. See the list of [admin items](#admin-items) for details. |
-| `shape` | The [encoded polyline](/decoding.md) of the matched path. |
+| `shape` | The [encoded polyline](../../decoding.md) of the matched path. |
 | `matched_points` | List of match results when using the `map_snap` shape match algorithm. There is a one-to-one correspondence with the input set of latitude, longitude coordinates and this list of match results. See the list of [matched point items](#matched-point-items) for details. |
 | `units` | The specified units with the request, in either kilometers or miles. |
 
@@ -285,6 +287,12 @@ You can use certain parameters to tune the response. Unless otherwise noted, eac
 ### Example `trace_route` requests
 
 The following are example JSON payloads for POST requests for the `trace_routes` action.
+
+*`trace_route` with shape parameter*
+
+```
+{"shape":[{"lat":39.983841,"lon":-76.735741,"type":"break"},{"lat":39.983704,"lon":-76.735298,"type":"via"},{"lat":39.983578,"lon":-76.734848,"type":"via"},{"lat":39.983551,"lon":-76.734253,"type":"break"},{"lat":39.983555,"lon":-76.734116,"type":"via"},{"lat":39.983589,"lon":-76.733315,"type":"via"},{"lat":39.983719,"lon":-76.732445,"type":"via"},{"lat":39.983818,"lon":-76.731712,"type":"via"},{"lat":39.983776,"lon":-76.731506,"type":"via"},{"lat":39.983696,"lon":-76.731369,"type":"break"}],"costing":"auto","shape_match":"map_snap"}}
+```
 
 *`trace_route` with encoded polyline parameter*
 

@@ -71,7 +71,7 @@ void Isochrone::Clear() {
 void Isochrone::ConstructIsoTile(
     const bool multimodal,
     const unsigned int max_minutes,
-    google::protobuf::RepeatedPtrField<valhalla::odin::Location>& origin_locations) {
+    google::protobuf::RepeatedPtrField<valhalla::Location>& origin_locations) {
   float max_distance;
   auto max_seconds = max_minutes * 60;
   if (multimodal) {
@@ -295,7 +295,7 @@ void Isochrone::ExpandForward(GraphReader& graphreader,
 
 // Compute iso-tile that we can use to generate isochrones.
 std::shared_ptr<const GriddedData<PointLL>>
-Isochrone::Compute(google::protobuf::RepeatedPtrField<valhalla::odin::Location>& origin_locations,
+Isochrone::Compute(google::protobuf::RepeatedPtrField<valhalla::Location>& origin_locations,
                    const unsigned int max_minutes,
                    GraphReader& graphreader,
                    const std::shared_ptr<DynamicCost>* mode_costing,
@@ -491,12 +491,12 @@ void Isochrone::ExpandReverse(GraphReader& graphreader,
 }
 
 // Compute iso-tile that we can use to generate isochrones.
-std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeReverse(
-    google::protobuf::RepeatedPtrField<valhalla::odin::Location>& dest_locations,
-    const unsigned int max_minutes,
-    GraphReader& graphreader,
-    const std::shared_ptr<DynamicCost>* mode_costing,
-    const TravelMode mode) {
+std::shared_ptr<const GriddedData<PointLL>>
+Isochrone::ComputeReverse(google::protobuf::RepeatedPtrField<valhalla::Location>& dest_locations,
+                          const unsigned int max_minutes,
+                          GraphReader& graphreader,
+                          const std::shared_ptr<DynamicCost>* mode_costing,
+                          const TravelMode mode) {
   // Set the mode and costing
   mode_ = mode;
   costing_ = mode_costing[static_cast<uint32_t>(mode_)];
@@ -967,12 +967,12 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
 }
 
 // Compute isochrone for mulit-modal route.
-std::shared_ptr<const GriddedData<PointLL>> Isochrone::ComputeMultiModal(
-    google::protobuf::RepeatedPtrField<valhalla::odin::Location>& origin_locations,
-    const unsigned int max_minutes,
-    GraphReader& graphreader,
-    const std::shared_ptr<DynamicCost>* mode_costing,
-    const TravelMode mode) {
+std::shared_ptr<const GriddedData<PointLL>>
+Isochrone::ComputeMultiModal(google::protobuf::RepeatedPtrField<valhalla::Location>& origin_locations,
+                             const unsigned int max_minutes,
+                             GraphReader& graphreader,
+                             const std::shared_ptr<DynamicCost>* mode_costing,
+                             const TravelMode mode) {
   // For pedestrian costing - set flag allowing use of transit connections
   // Set pedestrian costing to use max distance. TODO - need for other modes
   const auto& pc = mode_costing[static_cast<uint32_t>(TravelMode::kPedestrian)];
@@ -1143,7 +1143,7 @@ void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
 // Add edge(s) at each origin to the adjacency list
 void Isochrone::SetOriginLocations(
     GraphReader& graphreader,
-    google::protobuf::RepeatedPtrField<valhalla::odin::Location>& origin_locations,
+    google::protobuf::RepeatedPtrField<valhalla::Location>& origin_locations,
     const std::shared_ptr<DynamicCost>& costing) {
   // Add edges for each location to the adjacency list
   for (auto& origin : origin_locations) {
@@ -1154,7 +1154,7 @@ void Isochrone::SetOriginLocations(
     // Only skip inbound edges if we have other options
     bool has_other_edges = false;
     std::for_each(origin.path_edges().begin(), origin.path_edges().end(),
-                  [&has_other_edges](const odin::Location::PathEdge& e) {
+                  [&has_other_edges](const valhalla::Location::PathEdge& e) {
                     has_other_edges = has_other_edges || !e.end_node();
                   });
 
@@ -1219,7 +1219,7 @@ void Isochrone::SetOriginLocations(
 // Add edge(s) at each origin to the adjacency list
 void Isochrone::SetOriginLocationsMM(
     GraphReader& graphreader,
-    google::protobuf::RepeatedPtrField<valhalla::odin::Location>& origin_locations,
+    google::protobuf::RepeatedPtrField<valhalla::Location>& origin_locations,
     const std::shared_ptr<DynamicCost>& costing) {
   // Add edges for each location to the adjacency list
   for (auto& origin : origin_locations) {
@@ -1230,7 +1230,7 @@ void Isochrone::SetOriginLocationsMM(
     // Only skip inbound edges if we have other options
     bool has_other_edges = false;
     std::for_each(origin.path_edges().begin(), origin.path_edges().end(),
-                  [&has_other_edges](const odin::Location::PathEdge& e) {
+                  [&has_other_edges](const valhalla::Location::PathEdge& e) {
                     has_other_edges = has_other_edges || !e.end_node();
                   });
 
@@ -1298,7 +1298,7 @@ void Isochrone::SetOriginLocationsMM(
 // Add destination edges to the reverse path adjacency list.
 void Isochrone::SetDestinationLocations(
     GraphReader& graphreader,
-    google::protobuf::RepeatedPtrField<valhalla::odin::Location>& dest_locations,
+    google::protobuf::RepeatedPtrField<valhalla::Location>& dest_locations,
     const std::shared_ptr<DynamicCost>& costing) {
   // Add edges for each location to the adjacency list
   for (auto& dest : dest_locations) {
@@ -1309,7 +1309,7 @@ void Isochrone::SetDestinationLocations(
     // Only skip outbound edges if we have other options
     bool has_other_edges = false;
     std::for_each(dest.path_edges().begin(), dest.path_edges().end(),
-                  [&has_other_edges](const odin::Location::PathEdge& e) {
+                  [&has_other_edges](const valhalla::Location::PathEdge& e) {
                     has_other_edges = has_other_edges || !e.begin_node();
                   });
 

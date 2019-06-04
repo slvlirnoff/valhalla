@@ -13,6 +13,7 @@
 #include "worker.h"
 #include <boost/property_tree/ptree.hpp>
 
+using namespace valhalla;
 using namespace valhalla::thor;
 using namespace valhalla::sif;
 using namespace valhalla::loki;
@@ -30,9 +31,9 @@ boost::property_tree::ptree json_to_pt(const std::string& json) {
   return pt;
 }
 
-valhalla::odin::DirectionsOptions json_to_pbf(const std::string& json) {
-  valhalla::valhalla_request_t request;
-  request.parse(json, valhalla::odin::DirectionsOptions::route);
+DirectionsOptions json_to_pbf(const std::string& json) {
+  valhalla_request_t request;
+  request.parse(json, DirectionsOptions::route);
   return request.options;
 }
 
@@ -41,7 +42,7 @@ rapidjson::Document to_document(const std::string& request) {
   auto& allocator = d.GetAllocator();
   d.Parse(request.c_str());
   if (d.HasParseError())
-    throw valhalla::valhalla_exception_t{100};
+    throw valhalla_exception_t{100};
   return d;
 }
 
@@ -61,7 +62,7 @@ const std::unordered_map<std::string, float> kMaxDistances = {
 // a scale factor to apply to the score so that we bias towards closer results more
 constexpr float kDistanceScale = 10.f;
 
-void adjust_scores(valhalla::valhalla_request_t& request) {
+void adjust_scores(valhalla_request_t& request) {
   for (auto* locations : {request.options.mutable_locations(), request.options.mutable_sources(),
                           request.options.mutable_targets()}) {
     for (auto& location : *locations) {
@@ -82,7 +83,7 @@ void adjust_scores(valhalla::valhalla_request_t& request) {
       }
 
       // subtract off the min score and cap at max so that path algorithm doesnt go too far
-      auto max_score = kMaxDistances.find(valhalla::odin::Costing_Name(request.options.costing()));
+      auto max_score = kMaxDistances.find(Costing_Name(request.options.costing()));
       for (auto* candidates : {location.mutable_path_edges(), location.mutable_filtered_edges()}) {
         for (auto& candidate : *candidates) {
           candidate.set_distance(candidate.distance() - minScore);
@@ -109,7 +110,7 @@ const auto config = json_to_pt(R"({
       "hov": {"max_distance": 5000000.0,"max_locations": 20,"max_matrix_distance": 400000.0,"max_matrix_locations": 50},
       "taxi": {"max_distance": 5000000.0,"max_locations": 20,"max_matrix_distance": 400000.0,"max_matrix_locations": 50},
       "isochrone": {"max_contours": 4,"max_distance": 25000.0,"max_locations": 1,"max_time": 120},
-      "max_avoid_locations": 50,"max_radius": 200,"max_reachability": 100,
+      "max_avoid_locations": 50,"max_radius": 200,"max_reachability": 100,"max_alternates":2,
       "multimodal": {"max_distance": 500000.0,"max_locations": 50,"max_matrix_distance": 0.0,"max_matrix_locations": 0},
       "pedestrian": {"max_distance": 250000.0,"max_locations": 50,"max_matrix_distance": 200000.0,"max_matrix_locations": 50,"max_transit_walking_distance": 10000,"min_transit_walking_distance": 1},
       "skadi": {"max_shape": 750000,"min_resample": 10.0},
@@ -126,8 +127,8 @@ void try_path(GraphReader& reader,
               const bool depart_at,
               const char* test_request,
               const uint32_t expected_edgecount) {
-  valhalla::valhalla_request_t request;
-  request.parse(test_request, valhalla::odin::DirectionsOptions::route);
+  valhalla_request_t request;
+  request.parse(test_request, DirectionsOptions::route);
   loki_worker.route(request);
   adjust_scores(request);
   auto options = json_to_pbf(test_request);
@@ -138,8 +139,8 @@ void try_path(GraphReader& reader,
   std::shared_ptr<DynamicCost> mode_costing[4];
   mode_costing[static_cast<uint32_t>(mode)] = costing;
 
-  valhalla::odin::Location origin = request.options.locations(0);
-  valhalla::odin::Location dest = request.options.locations(1);
+  valhalla::Location origin = request.options.locations(0);
+  valhalla::Location dest = request.options.locations(1);
   if (depart_at) {
     TimeDepForward alg;
     auto pathedges = alg.GetBestPath(origin, dest, reader, mode_costing, mode);
