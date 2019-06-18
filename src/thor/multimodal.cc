@@ -196,7 +196,7 @@ MultiModalPathAlgorithm::GetBestPath(valhalla::Location& origin,
     bool has_transit = pred.has_transit();
     if (destinations_.find(pred.edgeid()) != destinations_.end()) {
       if (!has_transit) {
-        LOG_INFO("Prevent form_path because no fucking transit yet");
+        LOG_INFO("Prevent form_path because no transit yet");
         continue;
       }
       // Check if a trivial path. Skip if no predecessor and not
@@ -427,11 +427,11 @@ bool MultiModalPathAlgorithm::ExpandForward(GraphReader& graphreader,
           // arrives earlier even if higher cost because slower
           LOG_INFO("remove transit first waiting time from cost " +
                    std::to_string(departure->departure_time() - localtime));
-          LOG_INFO("- locatime " + std::to_string(localtime));
-          LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
-          LOG_INFO("=> max 10 mn => " +
-                   std::to_string(std::min(static_cast<uint32_t>(600),
-                                           departure->departure_time() - localtime)));
+          //LOG_INFO("- locatime " + std::to_string(localtime));
+          //LOG_INFO("- departure time " + std::to_string(departure->departure_time()));
+          //LOG_INFO("=> max 10 mn => " +
+          //         std::to_string(std::min(static_cast<uint32_t>(600),
+          //                                 departure->departure_time() - localtime)));
 
           // Up to one hour ...
           newcost.cost -=
@@ -872,7 +872,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader
   float delta = 0;
   int32_t new_tripid  = 0;
 
-  if(true) {
+  if(false) {
     // Work backwards from the destination to optimise transit departures
     for (auto edgelabel_index = dest; edgelabel_index != kInvalidLabel;
         edgelabel_index = edgelabels_[edgelabel_index].predecessor()) {
@@ -902,13 +902,13 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader
 
             // Can't be optimised
             if(!next_departure) {
-              LOG_INFO("no departure to optimise with");
+              //LOG_INFO("no departure to optimise with");
               break;
             }
 
 
             // For for potential further departure that would still fit
-            LOG_INFO("Next departure " + std::to_string(next_departure->departure_time()));
+            //LOG_INFO("Next departure " + std::to_string(next_departure->departure_time()));
             if(next_departure->departure_time() - transit_departure_time <= available_wait + 1) { // +1 rounding error
               // Save best found and check for the next one
               departure = next_departure;
@@ -918,7 +918,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader
             } else {
               break;
             }
-            LOG_INFO("next departure later delta " + std::to_string(delta) + " vs " + std::to_string(available_wait));
+            //LOG_INFO("next departure later delta " + std::to_string(delta) + " vs " + std::to_string(available_wait));
 
 
           } while(true);
@@ -982,12 +982,12 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader
     }
     if(previous_pt) {
       delta = previous_pt->wait_at_start();
-      LOG_INFO("update last walkings with " + std::to_string(delta));
+      //LOG_INFO("update last walkings with " + std::to_string(delta));
       // Update last walking before public transport
       for (auto idx = edgelabels_[previous_pt_idx].predecessor(); idx != kInvalidLabel;
         idx = edgelabels_[idx].predecessor()) {
         auto label = &edgelabels_[idx];
-        LOG_INFO("trip id " + std::to_string(label->tripid()));
+        //LOG_INFO("trip id " + std::to_string(label->tripid()));
         auto newcost = label->cost();
         newcost.cost += delta;
         newcost.secs += delta;
@@ -1001,7 +1001,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader
           label->tripid(),
           label->blockid()
         );
-        LOG_INFO("increase " + std::to_string(idx) + " by " + std::to_string(delta) + " to " + std::to_string(start_time_ + newcost.secs));
+        //LOG_INFO("increase " + std::to_string(idx) + " by " + std::to_string(delta) + " to " + std::to_string(start_time_ + newcost.secs));
       }
 
     }
@@ -1012,7 +1012,7 @@ std::vector<PathInfo> MultiModalPathAlgorithm::FormPath(GraphReader& graphreader
        edgelabel_index = edgelabels_[edgelabel_index].predecessor()) {
 
     MMEdgeLabel& edgelabel = edgelabels_[edgelabel_index];
-    LOG_INFO("emplace back idx " + std::to_string(edgelabel_index) + " step time " + std::to_string(start_time_ + edgelabel.cost().secs));
+    //LOG_INFO("emplace back idx " + std::to_string(edgelabel_index) + " step time " + std::to_string(start_time_ + edgelabel.cost().secs));
     path.emplace_back(edgelabel.mode(), edgelabel.cost().secs, edgelabel.edgeid(),
                       edgelabel.tripid());
 
