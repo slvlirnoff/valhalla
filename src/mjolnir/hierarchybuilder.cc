@@ -109,9 +109,22 @@ OldToNewNodes find_nodes(sequence<OldToNewNodes>& old_to_new, const GraphId& nod
  * @param  directededge  Directed edge to match.
  */
 bool OpposingEdgeInfoMatches(const GraphTile* tile, const DirectedEdge* edge) {
+  if (edge->endnode().tileid() != tile->id().tileid()) {
+    LOG_INFO("not same id ... let's assume it match");
+    return true; // match if don't exist
+  }
+
+
   // Get the nodeinfo at the end of the edge. Iterate through the directed edges and return
   // true if a matching edgeinfo offset if found.
-  const NodeInfo* nodeinfo = tile->node(edge->endnode().id());
+  const NodeInfo* nodeinfo;  
+try {
+  nodeinfo = tile->node(edge->endnode().id());
+  
+  } catch(...) {
+    LOG_INFO("not same id ... let's assume it match");
+    return true; // match if don't exist
+  }
   const DirectedEdge* directededge = tile->directededge(nodeinfo->edge_index());
   for (uint32_t i = 0; i < nodeinfo->edge_count(); i++, directededge++) {
     // Return true if the edge info matches (same name, shape, etc.)

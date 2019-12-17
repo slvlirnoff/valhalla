@@ -540,7 +540,7 @@ PedestrianCost::PedestrianCost(const Costing costing, const DirectionsOptions& o
     minimal_allowed_surface_ = Surface::kCompacted;
   } else {
     // Assume type = foot
-    access_mask_ = kPedestrianAccess;
+    access_mask_ = kAllAccess;
     minimal_allowed_surface_ = Surface::kPath;
   }
   max_distance_ = costing_options.max_distance();
