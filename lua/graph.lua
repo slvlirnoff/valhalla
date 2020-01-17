@@ -1252,6 +1252,11 @@ function filter_tags_generic(kv)
     kv["taxi_backward"] = "true"
   end
 
+  -- railways platform can be walked on
+  if kv["railways"] == "platform" then
+    kv["pedestrian"] = "true"
+  end
+
   --if none of the modes were set we are done looking at this
   if kv["auto_forward"] == "false" and kv["truck_forward"] == "false" and kv["bus_forward"] == "false" and
      kv["bike_forward"] == "false" and kv["emergency_forward"] == "false" and kv["moped_forward"] == "false" and
@@ -1266,7 +1271,7 @@ function filter_tags_generic(kv)
 
    --toss actual areas
    if kv["area"] == "yes" then
-     return 1
+     --return 1
    end
 
    delete_tags = { 'FIXME', 'note', 'source' }

@@ -140,9 +140,11 @@ MultiModalPathAlgorithm::GetBestPath(valhalla::Location& origin,
     if (mindist > 2000) {
       // Throw an exception so the message is returned in the service
       throw valhalla_exception_t{440};
+      LOG_ERROR("Previously throw 440 error");
     } else {
       // Allow routing but disable use of transit
       disable_transit_ = true;
+      LOG_ERROR("Previously distable transit");
     }
   }
 
