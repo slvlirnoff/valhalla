@@ -40,6 +40,7 @@ const std::unordered_map<std::string, bool> AttributesController::kRouteAttribut
     {kEdgeTransitRouteInfoShortName, true},
     {kEdgeTransitRouteInfoLongName, true},
     {kEdgeTransitRouteInfoHeadsign, true},
+    {kEdgeTransitRouteInfoTripShortName, true},
     {kEdgeTransitRouteInfoColor, true},
     {kEdgeTransitRouteInfoTextColor, true},
     {kEdgeTransitRouteInfoDescription, true},

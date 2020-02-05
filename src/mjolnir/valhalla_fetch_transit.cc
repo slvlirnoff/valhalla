@@ -762,6 +762,8 @@ bool get_stop_pairs(Transit& tile,
     pair->set_wheelchair_accessible(pair_pt.second.get<bool>("wheelchair_accessible", true));
 
     set_no_null(std::string, pair_pt.second, "trip_headsign", "null", pair->set_trip_headsign);
+    set_no_null(std::string, pair_pt.second, "trip_short_name", "null", pair->set_trip_short_name);
+
     pair->set_bikes_allowed(pair_pt.second.get<bool>("bikes_allowed", false));
 
     const auto& except_dates = pair_pt.second.get_child_optional("service_except_dates");
@@ -1000,6 +1002,7 @@ void fetch_tiles(const ptree& pt,
           // Start by writting .pbf.0, .pbf.1, .pbf.2
           transit_tile = prefix + '.' + std::to_string(ext++);
           LOG_INFO("Writing " + transit_tile.string());
+
           write_pbf(tile, transit_tile.string());
           // reset stop pairs, keep on accumulating the others
           tile.clear_stop_pairs();
@@ -1017,6 +1020,15 @@ void fetch_tiles(const ptree& pt,
     // save the last tile
     if (tile.stop_pairs_size()) {
       transit_tile = prefix;
+      int i = 0;
+      for (const auto& sp : tile.stop_pairs()) {
+        LOG_INFO("Stop pair: -> " + sp.trip_headsign());
+        LOG_INFO("         : id " + sp.trip_short_name());
+        i++;
+        if(i > 100) {
+          break;
+        }
+      }
       write_pbf(tile, transit_tile.string());
     }
   }

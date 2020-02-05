@@ -570,7 +570,7 @@ std::string GraphTile::GetName(const uint32_t textlist_offset) const {
   if (textlist_offset < textlist_size_) {
     return textlist_ + textlist_offset;
   } else {
-    throw std::runtime_error("GetName: offset exceeds size of text list");
+    throw std::runtime_error("GetName: offset exceeds size of text list - 573");
   }
 }
 
@@ -732,7 +732,7 @@ const TransitDeparture* GraphTile::GetNextDeparture(const uint32_t lineid,
         const auto& d = departures_[found];
         const TransitDeparture* dep =
             new TransitDeparture(d.lineid(), d.tripid(), d.routeid(), d.blockid(),
-                                 d.headsign_offset(), departure_time, d.end_time(), d.frequency(),
+                                 d.headsign_offset(), d.shortname_offset(), departure_time, d.end_time(), d.frequency(),
                                  d.elapsed_time(), d.schedule_index(), d.wheelchair_accessible(),
                                  d.bicycle_accessible());
         return dep;
@@ -798,7 +798,7 @@ const TransitDeparture* GraphTile::GetTransitDeparture(const uint32_t lineid,
         const auto& d = departures_[found];
         const TransitDeparture* dep =
             new TransitDeparture(d.lineid(), d.tripid(), d.routeid(), d.blockid(),
-                                 d.headsign_offset(), departure_time, d.end_time(), d.frequency(),
+                                 d.headsign_offset(), d.shortname_offset(), departure_time, d.end_time(), d.frequency(),
                                  d.elapsed_time(), d.schedule_index(), d.wheelchair_accessible(),
                                  d.bicycle_accessible());
         return dep;

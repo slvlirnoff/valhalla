@@ -41,6 +41,7 @@ struct Departure {
   uint32_t blockid;
   uint32_t shapeid;
   uint32_t headsign_offset;
+  uint32_t shortname_offset;
   uint32_t dep_time;
   uint32_t schedule_index;
   uint32_t frequency_end_time;

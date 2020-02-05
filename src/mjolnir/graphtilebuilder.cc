@@ -75,6 +75,7 @@ GraphTileBuilder::GraphTileBuilder(const std::string& tile_dir,
   for (uint32_t i = 0; i < header_->departurecount(); i++) {
     departure_builder_.emplace_back(std::move(departures_[i]));
     name_info.insert({departures_[i].headsign_offset()});
+    name_info.insert({departures_[i].shortname_offset()});
   }
   for (uint32_t i = 0; i < header_->stopcount(); i++) {
     stop_builder_.emplace_back(std::move(transit_stops_[i]));

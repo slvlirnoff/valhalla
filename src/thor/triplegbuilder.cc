@@ -1609,6 +1609,12 @@ TripLeg_Edge* TripLegBuilder::AddTripEdge(const AttributesController& controller
         transit_route_info->set_headsign(graphtile->GetName(transit_departure->headsign_offset()));
       }
 
+      if (controller.attributes.at(kEdgeTransitRouteInfoTripShortName) &&
+          transit_departure->shortname_offset()) {
+        LOG_INFO("GET SHORTNAME OFFSET + ofset " + std::to_string(transit_departure->shortname_offset()));
+        transit_route_info->set_trip_short_name(graphtile->GetName(transit_departure->shortname_offset()));
+      }
+
       const TransitRoute* transit_route = graphtile->GetTransitRoute(transit_departure->routeid());
 
       if (transit_route) {

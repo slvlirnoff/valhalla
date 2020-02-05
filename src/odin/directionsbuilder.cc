@@ -298,6 +298,9 @@ DirectionsLeg DirectionsBuilder::PopulateDirectionsLeg(const DirectionsOptions& 
       if (!transit_route.headsign.empty()) {
         trip_transit_info->set_headsign(transit_route.headsign);
       }
+      if (!transit_route.trip_short_name.empty()) {
+        trip_transit_info->set_trip_short_name(transit_route.trip_short_name);
+      }
       trip_transit_info->set_color(transit_route.color);
       trip_transit_info->set_text_color(transit_route.text_color);
       if (!transit_route.description.empty()) {

@@ -74,7 +74,7 @@ std::vector<std::string> EdgeInfo::GetNames() const {
     if (ni->name_offset_ < names_list_length_) {
       names.push_back(names_list_ + ni->name_offset_);
     } else {
-      throw std::runtime_error("GetNames: offset exceeds size of text list");
+      throw std::runtime_error("GetNames: offset exceeds size of text list - 77");
     }
   }
   return names;

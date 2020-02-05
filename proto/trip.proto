@@ -141,6 +141,7 @@ message TripLeg {
     optional string operator_onestop_id = 10;
     optional string operator_name = 11;
     optional string operator_url = 12;
+    optional string trip_short_name = 13;
   }
 
   enum CycleLane {

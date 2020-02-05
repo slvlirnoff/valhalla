@@ -39,6 +39,7 @@ message Transit_Fetch {
     optional float destination_dist_traveled = 22;
     optional uint32 frequency_end_time = 23;
     optional uint32 frequency_headway_seconds = 24;
+    optional string trip_short_name = 25;
   }
    
   enum VehicleType {

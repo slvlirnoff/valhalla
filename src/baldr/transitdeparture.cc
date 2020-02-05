@@ -10,6 +10,7 @@ TransitDeparture::TransitDeparture(const uint32_t lineid,
                                    const uint32_t routeid,
                                    const uint32_t blockid,
                                    const uint32_t headsign_offset,
+                                   const uint32_t shortname_offset,
                                    const uint32_t departure_time,
                                    const uint32_t elapsed_time,
                                    const uint32_t schedule_index,
@@ -39,6 +40,12 @@ TransitDeparture::TransitDeparture(const uint32_t lineid,
     throw std::runtime_error("TransitDeparture: Exceeded maximum headsign offset");
   }
   headsign_offset_ = headsign_offset;
+
+
+  if (shortname_offset > kMaxNameOffset) {
+    throw std::runtime_error("TransitDeparture: Exceeded maximum headsign offset");
+  }
+  shortname_offset_ = shortname_offset;
 
   if (blockid > kMaxTransitBlockId) {
     throw std::runtime_error("TransitDeparture: Exceeded maximum transit block Id");
@@ -72,6 +79,7 @@ TransitDeparture::TransitDeparture(const uint32_t lineid,
                                    const uint32_t routeid,
                                    const uint32_t blockid,
                                    const uint32_t headsign_offset,
+                                   const uint32_t shortname_offset,
                                    const uint32_t departure_time,
                                    const uint32_t end_time,
                                    const uint32_t frequency,
@@ -103,6 +111,11 @@ TransitDeparture::TransitDeparture(const uint32_t lineid,
     throw std::runtime_error("TransitDeparture: Exceeded maximum name offset");
   }
   headsign_offset_ = headsign_offset;
+
+  if (shortname_offset > kMaxNameOffset) {
+    throw std::runtime_error("TransitDeparture: Exceeded maximum headsign offset");
+  }
+  shortname_offset_ = shortname_offset;
 
   if (blockid > kMaxTransitBlockId) {
     throw std::runtime_error("TransitDeparture: Exceeded maximum transit block Id");

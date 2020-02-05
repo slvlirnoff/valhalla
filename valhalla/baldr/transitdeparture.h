@@ -38,6 +38,7 @@ public:
    * @param  routeid  Route index within the tile.
    * @param  blockid  Block Id.
    * @param  headsign_offset  Offset to headsign within the text/name table.
+   * @param  shortname_offset  Offset to shortname within the text/name table.
    * @param  departure_time   Departure time (seconds from midnight)
    * @param  elapsed_time     Elapsed time to next stop
    * @param  schedule_index   Index into the schedule validity table
@@ -49,6 +50,7 @@ public:
                    const uint32_t routeid,
                    const uint32_t blockid,
                    const uint32_t headsign_offset,
+                   const uint32_t shortname_offset,
                    const uint32_t departure_time,
                    const uint32_t elapsed_time,
                    const uint32_t schedule_index,
@@ -62,6 +64,7 @@ public:
    * @param  routeid  Route index within the tile.
    * @param  blockid  Block Id.
    * @param  headsign_offset  Offset to headsign within the text/name table.
+   * @param  shortname_offset  Offset to shortname within the text/name table.
    * @param  start_time   Departure time (seconds from midnight)
    * @param  end_time     End time for departures (seconds from midnight)
    * @param  frequency    Seconds between successive departures.
@@ -75,6 +78,7 @@ public:
                    const uint32_t routeid,
                    const uint32_t blockid,
                    const uint32_t headsign_offset,
+                   const uint32_t shortname_offset,
                    const uint32_t start_time,
                    const uint32_t end_time,
                    const uint32_t frequency,
@@ -131,6 +135,16 @@ public:
   uint32_t headsign_offset() const {
     return headsign_offset_;
   }
+
+
+  /**
+   * Get the shortname offset into the names/text list.
+   * @return  Returns the offset into the names/text list.
+   */
+  uint32_t shortname_offset() const {
+    return shortname_offset_;
+  }
+
 
   /**
    * Get the departure time.
@@ -213,6 +227,9 @@ protected:
   uint64_t bicycle_accessible_ : 1;
   uint64_t spare_ : 4;
 
+  uint64_t shortname_offset_ : 32; // Headsign offset into the names/text list.
+
+
   // Departure times
   union DepartureTimes {
     FixedDeparture fixed_;
@@ -220,6 +237,7 @@ protected:
   };
   DepartureTimes departure_times_;
 };
+
 
 } // namespace baldr
 } // namespace valhalla

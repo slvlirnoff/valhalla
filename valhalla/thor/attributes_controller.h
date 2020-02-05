@@ -41,6 +41,7 @@ const std::string kEdgeTransitRouteInfoTripId = "edge.transit_route_info.trip_id
 const std::string kEdgeTransitRouteInfoShortName = "edge.transit_route_info.short_name";
 const std::string kEdgeTransitRouteInfoLongName = "edge.transit_route_info.long_name";
 const std::string kEdgeTransitRouteInfoHeadsign = "edge.transit_route_info.headsign";
+const std::string kEdgeTransitRouteInfoTripShortName = "edge.transit_route_info.trip_short_name";
 const std::string kEdgeTransitRouteInfoColor = "edge.transit_route_info.color";
 const std::string kEdgeTransitRouteInfoTextColor = "edge.transit_route_info.text_color";
 const std::string kEdgeTransitRouteInfoDescription = "edge.transit_route_info.description";

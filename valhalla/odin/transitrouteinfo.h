@@ -23,6 +23,7 @@ struct TransitRouteInfo {
   std::string short_name;
   std::string long_name;
   std::string headsign;
+  std::string trip_short_name;
   uint32_t color;
   uint32_t text_color;
   std::string description;

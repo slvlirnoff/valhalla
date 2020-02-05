@@ -439,6 +439,9 @@ json::ArrayPtr legs(const std::list<valhalla::DirectionsLeg>& directions_legs) {
         if (transit_info.has_headsign()) {
           json_transit_info->emplace("headsign", transit_info.headsign());
         }
+        if (transit_info.has_trip_short_name()) {
+          json_transit_info->emplace("trip_short_name", transit_info.trip_short_name());
+        }
         if (transit_info.has_color()) {
           json_transit_info->emplace("color", static_cast<uint64_t>(transit_info.color()));
         }

@@ -208,6 +208,7 @@ ProcessStopPairs(GraphTileBuilder& transit_tilebuilder,
           }
 
           dep.headsign_offset = transit_tilebuilder.AddName(sp.trip_headsign());
+          dep.shortname_offset = transit_tilebuilder.AddName(sp.trip_short_name());
 
           date::sys_days t_d = date::sys_days(date::year_month_day(d + date::days(tile_date)));
           uint32_t end_day = static_cast<uint32_t>((end_date - t_d).count());
@@ -1118,14 +1119,14 @@ void build_tiles(const boost::property_tree::ptree& pt,
         try {
           if (dep.frequency == 0) {
             // Form transit departures -- fixed departure time
-            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset,
+            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset, dep.shortname_offset,
                                 dep.dep_time, dep.elapsed_time, dep.schedule_index,
                                 dep.wheelchair_accessible, dep.bicycle_accessible);
             tilebuilder_transit.AddTransitDeparture(std::move(td));
           } else {
 
             // Form transit departures -- frequency departure time
-            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset,
+            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset, dep.shortname_offset,
                                 dep.dep_time, dep.frequency_end_time, dep.frequency, dep.elapsed_time,
                                 dep.schedule_index, dep.wheelchair_accessible,
                                 dep.bicycle_accessible);

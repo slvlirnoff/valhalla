@@ -886,6 +886,7 @@ void ManeuversBuilder::InitializeManeuver(Maneuver& maneuver, int node_index) {
     transit_info->short_name = pe_transit_info.short_name();
     transit_info->long_name = pe_transit_info.long_name();
     transit_info->headsign = pe_transit_info.headsign();
+    transit_info->trip_short_name = pe_transit_info.trip_short_name();
     transit_info->color = pe_transit_info.color();
     transit_info->text_color = pe_transit_info.text_color();
     transit_info->description = pe_transit_info.description();

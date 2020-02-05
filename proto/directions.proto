@@ -23,6 +23,7 @@ message DirectionsLeg {
     optional string operator_name = 9;
     optional string operator_url = 10;
     repeated TransitPlatformInfo transit_stops = 11;
+    optional string trip_short_name = 12;
   }
 
   enum TravelMode {
