@@ -32,7 +32,7 @@ services:
       - DATASTORE_URL=https://datastore.routerank.com/
       - TRANSIT_BOUNDING_BOX=-5.8,41.8,12.8,51.7
 
-  build_admin:
+  build_admins:
     build: ./
     image: registry.docker.routerank.com/valhalla:latest
     command: /valhalla_scripts/build_admin.sh

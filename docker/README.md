@@ -10,6 +10,9 @@ docker-compose run fetch_elevation
 # Download timezone information
 docker-compose run fetch_timezones
 
+# Build admin information (ideally should download planet OSM for this)
+docker-compose run build_admins
+
 # Download transit information
 docker-compose run fetch_transit
 
@@ -28,3 +31,4 @@ docker-compose run build_tiles
 
 
 # Running the service
+docker-compose up valhalla -d
