@@ -136,7 +136,6 @@ public:
     return headsign_offset_;
   }
 
-
   /**
    * Get the shortname offset into the names/text list.
    * @return  Returns the offset into the names/text list.
@@ -144,7 +143,6 @@ public:
   uint32_t shortname_offset() const {
     return shortname_offset_;
   }
-
 
   /**
    * Get the departure time.
@@ -229,7 +227,6 @@ protected:
 
   uint64_t shortname_offset_ : 32; // Headsign offset into the names/text list.
 
-
   // Departure times
   union DepartureTimes {
     FixedDeparture fixed_;
@@ -237,7 +234,6 @@ protected:
   };
   DepartureTimes departure_times_;
 };
-
 
 } // namespace baldr
 } // namespace valhalla

@@ -732,9 +732,9 @@ const TransitDeparture* GraphTile::GetNextDeparture(const uint32_t lineid,
         const auto& d = departures_[found];
         const TransitDeparture* dep =
             new TransitDeparture(d.lineid(), d.tripid(), d.routeid(), d.blockid(),
-                                 d.headsign_offset(), d.shortname_offset(), departure_time, d.end_time(), d.frequency(),
-                                 d.elapsed_time(), d.schedule_index(), d.wheelchair_accessible(),
-                                 d.bicycle_accessible());
+                                 d.headsign_offset(), d.shortname_offset(), departure_time,
+                                 d.end_time(), d.frequency(), d.elapsed_time(), d.schedule_index(),
+                                 d.wheelchair_accessible(), d.bicycle_accessible());
         return dep;
       }
     }
@@ -798,9 +798,9 @@ const TransitDeparture* GraphTile::GetTransitDeparture(const uint32_t lineid,
         const auto& d = departures_[found];
         const TransitDeparture* dep =
             new TransitDeparture(d.lineid(), d.tripid(), d.routeid(), d.blockid(),
-                                 d.headsign_offset(), d.shortname_offset(), departure_time, d.end_time(), d.frequency(),
-                                 d.elapsed_time(), d.schedule_index(), d.wheelchair_accessible(),
-                                 d.bicycle_accessible());
+                                 d.headsign_offset(), d.shortname_offset(), departure_time,
+                                 d.end_time(), d.frequency(), d.elapsed_time(), d.schedule_index(),
+                                 d.wheelchair_accessible(), d.bicycle_accessible());
         return dep;
       }
     }
@@ -862,7 +862,9 @@ const TransitRoute* GraphTile::GetTransitRoute(const uint32_t idx) const {
   if (idx < count) {
     return &transit_routes_[idx];
   }
-  throw std::runtime_error("GraphTile GetTransitRoute index out of bounds");
+
+  throw std::runtime_error("GraphTile GetTransitRoute index out of bounds " + std::to_string(idx) +
+                           " count: " + std::to_string(header_->routecount()));
 }
 
 // Get the transit schedule given its schedule index.

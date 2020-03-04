@@ -598,13 +598,8 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
   float wait_at_stop = 0;
   float travel_secs = pred.cost().secs - wait_at_start;
 
-  UpdateIsoTile(
-    pred,
-    graphreader,
-    tile->get_node_ll(node),
-    secs0 - wait_at_start,
-    secs1 - wait_at_start
-  );
+  UpdateIsoTile(pred, graphreader, tile->get_node_ll(node), secs0 - wait_at_start,
+                secs1 - wait_at_start);
 
   // Return true if the time interval has been met
   if (travel_secs > max_seconds_) {
@@ -714,9 +709,8 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
       }
 
       // Look up the next departure along this edge
-      departure =
-          tile->GetNextDeparture(directededge->lineid(), localtime, day_, dow_, date_before_tile_,
-                                 tc->wheelchair(), tc->bicycle());
+      departure = tile->GetNextDeparture(directededge->lineid(), localtime, day_, dow_,
+                                         date_before_tile_, tc->wheelchair(), tc->bicycle());
       if (departure) {
         // Should explore departure(s)
         // Check if there has been a mode change
@@ -781,7 +775,6 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
         } else {
           wait_at_stop = departure->departure_time() - localtime; // Time waiting at this stop
         }
-
 
         // Change mode and costing to transit. Add edge cost.
         newcost += tc->EdgeCost(directededge, departure, localtime);
@@ -849,8 +842,9 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
     }
     bool do_continue = false;
 
-    if(departure) {
-      LOG_INFO("expand and check next departure after " + std::to_string(departure->departure_time()));
+    if (departure) {
+      LOG_INFO("expand and check next departure after " +
+               std::to_string(departure->departure_time()));
     }
 
     // For each departure if transit
@@ -871,32 +865,32 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
         if (newcost.cost < lab.cost().cost) {
           float newsortcost = lab.sortcost() - (lab.cost().cost - newcost.cost);
           adjacencylist_->decrease(es->index(), newsortcost);
-          lab.Update(pred_idx, newcost, wait_at_start, wait_at_stop, newsortcost, walking_distance, tripid, blockid);
+          lab.Update(pred_idx, newcost, wait_at_start, wait_at_stop, newsortcost, walking_distance,
+                     tripid, blockid);
         }
       } else {
         // Add edge label, add to the adjacency list and set edge status
         uint32_t idx = mmedgelabels_.size();
         *es = {EdgeSet::kTemporary, idx};
-        mmedgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_at_start, wait_at_stop, newcost.cost, 0.0f, mode_,
-                                  walking_distance, tripid, prior_stop, blockid, operator_id,
-                                  has_transit);
+        mmedgelabels_.emplace_back(pred_idx, edgeid, directededge, newcost, wait_at_start,
+                                   wait_at_stop, newcost.cost, 0.0f, mode_, walking_distance, tripid,
+                                   prior_stop, blockid, operator_id, has_transit);
         adjacencylist_->add(idx);
       }
-
 
       // Look up the next departures along this edge
       if (departure) {
 
         auto next_departure_time = departure->departure_time();
-        departure = tile->GetNextDeparture(directededge->lineid(), next_departure_time + 30, day_, dow_, date_before_tile_,
-                                  tc->wheelchair(), tc->bicycle());
+        departure = tile->GetNextDeparture(directededge->lineid(), next_departure_time + 30, day_,
+                                           dow_, date_before_tile_, tc->wheelchair(), tc->bicycle());
         // No more departure, break while loop
-        if(!departure) {
+        if (!departure) {
           LOG_INFO("no more departure, break");
           do_continue = true;
           break;
         }
-        
+
         LOG_INFO("found next departure at " + std::to_string(departure->departure_time()));
 
         // Update trip Id and block Id
@@ -943,15 +937,14 @@ bool Isochrone::ExpandForwardMM(GraphReader& graphreader,
           wait_at_stop = departure->departure_time() - localtime;
         }
 
-
         // Change mode and costing to transit. Add edge cost.
         newcost += tc->EdgeCost(directededge, departure, localtime);
       } else {
         // Not a transit edge, just break
         break;
       }
-    } while(!do_continue);
-    if(do_continue) {
+    } while (!do_continue);
+    if (do_continue) {
       continue;
     }
   }
@@ -1276,8 +1269,8 @@ void Isochrone::SetOriginLocationsMM(
       uint32_t idx = mmedgelabels_.size();
       uint32_t d = static_cast<uint32_t>(directededge->length() * (1.0f - edge.percent_along()));
       edgestatus_.Set(edgeid, EdgeSet::kTemporary, idx, tile);
-      MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, 0.0f, cost.cost, 0.0f, mode_, d, 0,
-                             GraphId(), 0, 0, false);
+      MMEdgeLabel edge_label(kInvalidLabel, edgeid, directededge, cost, 0.0f, 0.0f, cost.cost, 0.0f,
+                             mode_, d, 0, GraphId(), 0, 0, false);
 
       // Set the origin flag
       edge_label.set_origin();

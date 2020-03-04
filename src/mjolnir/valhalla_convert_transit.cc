@@ -1119,17 +1119,18 @@ void build_tiles(const boost::property_tree::ptree& pt,
         try {
           if (dep.frequency == 0) {
             // Form transit departures -- fixed departure time
-            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset, dep.shortname_offset,
-                                dep.dep_time, dep.elapsed_time, dep.schedule_index,
-                                dep.wheelchair_accessible, dep.bicycle_accessible);
+            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset,
+                                dep.shortname_offset, dep.dep_time, dep.elapsed_time,
+                                dep.schedule_index, dep.wheelchair_accessible,
+                                dep.bicycle_accessible);
             tilebuilder_transit.AddTransitDeparture(std::move(td));
           } else {
 
             // Form transit departures -- frequency departure time
-            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset, dep.shortname_offset,
-                                dep.dep_time, dep.frequency_end_time, dep.frequency, dep.elapsed_time,
-                                dep.schedule_index, dep.wheelchair_accessible,
-                                dep.bicycle_accessible);
+            TransitDeparture td(lineid, dep.trip, dep.route, dep.blockid, dep.headsign_offset,
+                                dep.shortname_offset, dep.dep_time, dep.frequency_end_time,
+                                dep.frequency, dep.elapsed_time, dep.schedule_index,
+                                dep.wheelchair_accessible, dep.bicycle_accessible);
             tilebuilder_transit.AddTransitDeparture(std::move(td));
           }
         } catch (const std::exception& e) { LOG_ERROR(e.what()); }

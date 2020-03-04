@@ -41,7 +41,6 @@ TransitDeparture::TransitDeparture(const uint32_t lineid,
   }
   headsign_offset_ = headsign_offset;
 
-
   if (shortname_offset > kMaxNameOffset) {
     throw std::runtime_error("TransitDeparture: Exceeded maximum headsign offset");
   }

@@ -1,3 +1,4 @@
+
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -89,7 +90,7 @@ struct pt_curler_t {
       long http_code = 0;
       std::string log_extra = "Couldn't fetch url ";
       // can we fetch this url
-      LOG_DEBUG(url);
+      LOG_INFO(url);
       if (curl_easy_perform(connection.get()) == CURLE_OK) {
         curl_easy_getinfo(connection.get(), CURLINFO_RESPONSE_CODE, &http_code);
         log_extra = std::to_string(http_code) + "'d ";
@@ -206,6 +207,8 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         LOG_WARN("Skipping non-polygonal feature: " + feature.second.get_value<std::string>());
         continue;
       }
+
+      // 5.956649780273437,46.222127524002886,7.24273681640625,46.4851559004343
       // grab the tile row and column ranges for the max box around the polygon
       float min_x = 180, max_x = -180, min_y = 90, max_y = -90;
       for (const auto& coord : feature.second.get_child("geometry.coordinates").front().second) {
@@ -228,7 +231,7 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (min_x < fixed_min_x) {
           min_x = fixed_min_x;
         }
-        if(max_x < min_x) {
+        if (max_x < min_x) {
           max_x = min_x;
         }
         if (max_x > fixed_max_x) {
@@ -237,7 +240,7 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         if (min_y < fixed_min_y) {
           min_y = fixed_min_y;
         }
-        if(max_y < min_y) {
+        if (max_y < min_y) {
           max_y = min_y;
         }
         if (max_y > fixed_max_y) {
@@ -245,8 +248,6 @@ std::priority_queue<weighted_tile_t> which_tiles(const ptree& pt, const std::str
         }
         LOG_INFO("New BBox: " + std::to_string(min_x) + " " + std::to_string(max_x) + " " +
                  std::to_string(min_y) + " " + std::to_string(max_y));
-
-
       }
 
       // expand the top and bottom edges of the box to account for geodesics
@@ -996,7 +997,9 @@ void fetch_tiles(const ptree& pt,
         // grab some stuff
         response = curler(*request, "schedule_stop_pairs");
         // copy pairs in, noting if any dont have stops
-        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites, short_names, pt, curler) || dangles;
+        dangles = get_stop_pairs(tile, uniques, shapes, response, platforms, routes, websites,
+                                 short_names, pt, curler) ||
+                  dangles;
         // if stop pairs is large save to a path with an incremented extension
         if (tile.stop_pairs_size() >= 500000) {
           // Start by writting .pbf.0, .pbf.1, .pbf.2
@@ -1017,7 +1020,7 @@ void fetch_tiles(const ptree& pt,
       dangling.emplace_back(current);
     }
 
-    // save the last tile
+    // save the last tile (.pbf) which has the most routes saved in it
     if (tile.stop_pairs_size()) {
       transit_tile = prefix;
       int i = 0;
@@ -1025,7 +1028,7 @@ void fetch_tiles(const ptree& pt,
         LOG_INFO("Stop pair: -> " + sp.trip_headsign());
         LOG_INFO("         : id " + sp.trip_short_name());
         i++;
-        if(i > 100) {
+        if (i > 100) {
           break;
         }
       }

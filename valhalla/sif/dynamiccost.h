@@ -496,7 +496,7 @@ public:
    *         false otherwise.
    */
   bool AvoidAsOriginEdge(const baldr::GraphId& edgeid, const float percent_along) const {
-    if(user_avoid_edges_.size() == 0) {
+    if (user_avoid_edges_.size() == 0) {
       return false;
     }
     auto avoid = user_avoid_edges_.find(edgeid);

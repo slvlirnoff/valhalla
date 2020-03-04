@@ -551,7 +551,7 @@ public:
               const baldr::DirectedEdge* edge,
               const sif::Cost& cost,
               const float wait_at_start, // Waiting time before first transit leg
-              const float wait_at_stop, // Waiting time before this edge label
+              const float wait_at_stop,  // Waiting time before this edge label
               const float sortcost,
               const float dist,
               const sif::TravelMode mode,
@@ -563,8 +563,8 @@ public:
               const bool has_transit)
       : EdgeLabel(predecessor, edgeid, edge, cost, sortcost, dist, mode, path_distance),
         prior_stopid_(prior_stopid), tripid_(tripid), blockid_(blockid),
-        transit_operator_(transit_operator), has_transit_(has_transit),
-        wait_at_start_(wait_at_start), wait_at_stop_(wait_at_stop) {
+        transit_operator_(transit_operator), has_transit_(has_transit), wait_at_start_(wait_at_start),
+        wait_at_stop_(wait_at_stop) {
   }
 
   /**
@@ -582,7 +582,7 @@ public:
   void Update(const uint32_t predecessor,
               const sif::Cost& cost,
               const float wait_at_start, // Waiting time before first transit leg
-              const float wait_at_stop, // Waiting time before first transit leg
+              const float wait_at_stop,  // Waiting time before first transit leg
               const float sortcost,
               const uint32_t path_distance,
               const uint32_t tripid,

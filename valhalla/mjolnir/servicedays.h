@@ -26,6 +26,17 @@ std::string to_iso_extended_string(const date::sys_days& d);
 std::string get_testing_date_time();
 
 /**
+ * Shift all days by one, to the right
+ * @param   days supported by the gtfs feed/service
+ * @param   end_date end date
+ * @param   tile_date seconds from epoch
+ * @return  Returns the updated days.  Days will only be updated if the added date
+ *          is in the start and end date range.
+ */
+uint64_t
+shift_service_day(const uint64_t& days, const date::sys_days& end_date, const uint32_t tile_date);
+
+/**
  * Get the days that this transit service is running in 60 days or less
  * @param   start_date start date
  * @param   end_date end date

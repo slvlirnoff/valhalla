@@ -113,6 +113,13 @@ uint64_t get_service_days(date::sys_days& start_date,
   return bit_set;
 }
 
+uint64_t
+shift_service_day(const uint64_t& days, const date::sys_days& end_date, const uint32_t tile_date) {
+  auto new_days = days << 1;
+  // remove the day after the last day
+  return ~((~new_days) | (static_cast<uint64_t>(1) << 60));
+}
+
 // Adds a service day to the days.
 uint64_t add_service_day(const uint64_t& days,
                          const date::sys_days& end_date,

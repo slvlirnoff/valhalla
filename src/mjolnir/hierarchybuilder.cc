@@ -114,14 +114,13 @@ bool OpposingEdgeInfoMatches(const GraphTile* tile, const DirectedEdge* edge) {
     return true; // match if don't exist
   }
 
-
   // Get the nodeinfo at the end of the edge. Iterate through the directed edges and return
   // true if a matching edgeinfo offset if found.
-  const NodeInfo* nodeinfo;  
-try {
-  nodeinfo = tile->node(edge->endnode().id());
-  
-  } catch(...) {
+  const NodeInfo* nodeinfo;
+  try {
+    nodeinfo = tile->node(edge->endnode().id());
+
+  } catch (...) {
     LOG_INFO("not same id ... let's assume it match");
     return true; // match if don't exist
   }

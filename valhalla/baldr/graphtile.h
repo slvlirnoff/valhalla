@@ -154,10 +154,11 @@ public:
     if (edge.id() < header_->directededgecount()) {
       return &directededges_[edge.id()];
     }
-    throw std::runtime_error(
-        "GraphTile 1 DirectedEdge index out of bounds: " + std::to_string(header_->graphid().tileid()) +
-        "," + std::to_string(header_->graphid().level()) + "," + std::to_string(edge.id()) +
-        " directededgecount= " + std::to_string(header_->directededgecount()));
+    throw std::runtime_error("GraphTile 1 DirectedEdge index out of bounds: " +
+                             std::to_string(header_->graphid().tileid()) + "," +
+                             std::to_string(header_->graphid().level()) + "," +
+                             std::to_string(edge.id()) +
+                             " directededgecount= " + std::to_string(header_->directededgecount()));
   }
 
   /**
@@ -169,10 +170,10 @@ public:
     if (idx < header_->directededgecount()) {
       return &directededges_[idx];
     }
-    throw std::runtime_error(
-        "GraphTile 2 DirectedEdge index out of bounds: " + std::to_string(header_->graphid().tileid()) +
-        "," + std::to_string(header_->graphid().level()) + "," + std::to_string(idx) +
-        " directededgecount= " + std::to_string(header_->directededgecount()));
+    throw std::runtime_error("GraphTile 2 DirectedEdge index out of bounds: " +
+                             std::to_string(header_->graphid().tileid()) + "," +
+                             std::to_string(header_->graphid().level()) + "," + std::to_string(idx) +
+                             " directededgecount= " + std::to_string(header_->directededgecount()));
   }
 
   /**

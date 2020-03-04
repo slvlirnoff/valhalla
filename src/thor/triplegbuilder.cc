@@ -1180,20 +1180,20 @@ TripLegBuilder::Build(const AttributesController& controller,
     // Set the endnode of this directed edge as the startnode of the next edge.
     startnode = directededge->endnode();
 
-    if(!directededge->IsTransitLine()) {
-	    // Save the opposing edge as the previous DirectedEdge (for name consistency)
-	    const GraphTile* t2 = graphreader.GetGraphTile(directededge->endnode());
-	    if (t2 == nullptr) {
-	      continue;
-	    }
-	    GraphId oppedge = t2->GetOpposingEdgeId(directededge);
-	    if (oppedge.Is_Valid()) {
-	      try {
-                prev_de = t2->directededge(oppedge);
-              } catch(...) { LOG_INFO("annoying but ..."); }
-            } else {
-              LOG_INFO("invalid opposing edge id ...");
-            }
+    if (!directededge->IsTransitLine()) {
+      // Save the opposing edge as the previous DirectedEdge (for name consistency)
+      const GraphTile* t2 = graphreader.GetGraphTile(directededge->endnode());
+      if (t2 == nullptr) {
+        continue;
+      }
+      GraphId oppedge = t2->GetOpposingEdgeId(directededge);
+      if (oppedge.Is_Valid()) {
+        try {
+          prev_de = t2->directededge(oppedge);
+        } catch (...) { LOG_INFO("annoying but ..."); }
+      } else {
+        LOG_INFO("invalid opposing edge id ...");
+      }
     }
 
     // Save the index of the opposing local directed edge at the end node
@@ -1611,8 +1611,10 @@ TripLeg_Edge* TripLegBuilder::AddTripEdge(const AttributesController& controller
 
       if (controller.attributes.at(kEdgeTransitRouteInfoTripShortName) &&
           transit_departure->shortname_offset()) {
-        LOG_INFO("GET SHORTNAME OFFSET + ofset " + std::to_string(transit_departure->shortname_offset()));
-        transit_route_info->set_trip_short_name(graphtile->GetName(transit_departure->shortname_offset()));
+        LOG_INFO("GET SHORTNAME OFFSET + ofset " +
+                 std::to_string(transit_departure->shortname_offset()));
+        transit_route_info->set_trip_short_name(
+            graphtile->GetName(transit_departure->shortname_offset()));
       }
 
       const TransitRoute* transit_route = graphtile->GetTransitRoute(transit_departure->routeid());
