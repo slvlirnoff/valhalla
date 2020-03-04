@@ -1,0 +1,10 @@
+Host gitlab.intern.routerank.com
+    IdentityFile /integration_key
+    StrictHostKeyChecking no 
+Host gitlab.intern.routerank.com
+    User git
+    Hostname gitlab.intern.routerank.com
+    StrictHostKeyChecking no 
+    PreferredAuthentications publickey
+    IdentityFile /integration_key
+

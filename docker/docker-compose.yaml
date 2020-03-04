@@ -1,0 +1,57 @@
+version: '3.3'
+
+services:
+  update_osm:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    command: /valhalla_scripts/update_osm.sh
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+
+  fetch_elevation:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    command: /valhalla_scripts/fetch_elevation.sh
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+
+  fetch_timezones:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    command: /valhalla_scripts/fetch_timezones.sh
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+
+  fetch_transit:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    command: /valhalla_scripts/fetch_transit.sh
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+    environment:
+      - DATASTORE_URL=https://datastore.routerank.com/
+      - TRANSIT_BOUNDING_BOX=-5.8,41.8,12.8,51.7
+
+  build_admin:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    command: /valhalla_scripts/build_admin.sh
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+
+  build_tiles:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    command: /valhalla_scripts/build_tiles.sh
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+    ports:
+      - "8002:8002"
+
+  valhalla:
+    build: ./
+    image: registry.docker.routerank.com/valhalla:latest
+    volumes:
+      - "/data/extra/valhalla_docker:/data/valhalla"
+    ports:
+      - "8002:8002"
