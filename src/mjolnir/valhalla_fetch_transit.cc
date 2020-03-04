@@ -470,7 +470,7 @@ void get_routes(Transit& tile,
     set_no_null(std::string, route_pt.second, "onestop_id", "null", route->set_onestop_id);
     std::string vehicle_type = route_pt.second.get<std::string>("vehicle_type", "null");
     Transit_VehicleType type = Transit_VehicleType::Transit_VehicleType_kRail;
-    if (vehicle_type == "tram" || vehicle_type == "tram_service") {
+    if (vehicle_type == "tram" || vehicle_type == "tram_service" || vehicle_type == "sightseeing_tram_service") {
       type = Transit_VehicleType::Transit_VehicleType_kTram;
     } else if (vehicle_type == "metro") {
       type = Transit_VehicleType::Transit_VehicleType_kMetro;
@@ -495,7 +495,7 @@ void get_routes(Transit& tile,
       type = Transit_VehicleType::Transit_VehicleType_kCableCar;
     } else if (vehicle_type == "gondola") {
       type = Transit_VehicleType::Transit_VehicleType_kGondola;
-    } else if (vehicle_type == "funicular") {
+    } else if (vehicle_type == "funicular" || vehicle_type == "rack_and_pinion_railway") {
       type = Transit_VehicleType::Transit_VehicleType_kFunicular;
     } else {
       LOG_ERROR("Skipping unsupported vehicle_type: " + vehicle_type + " for route " +

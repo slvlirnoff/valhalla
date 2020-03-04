@@ -37,7 +37,9 @@ apt-get install -y \
   unzip \
   lua5.2 \
   locales \
-  python-all-dev
+  python-all-dev \
+  cmake
+
 
 if [[ $(grep -cF xenial /etc/lsb-release) > 0 ]]; then
   apt-get install -y libsqlite3-mod-spatialite
