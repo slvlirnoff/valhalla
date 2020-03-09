@@ -90,7 +90,7 @@ struct pt_curler_t {
       long http_code = 0;
       std::string log_extra = "Couldn't fetch url ";
       // can we fetch this url
-      LOG_INFO(url);
+      //LOG_INFO(url);
       if (curl_easy_perform(connection.get()) == CURLE_OK) {
         curl_easy_getinfo(connection.get(), CURLINFO_RESPONSE_CODE, &http_code);
         log_extra = std::to_string(http_code) + "'d ";
